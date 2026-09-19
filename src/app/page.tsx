@@ -11,13 +11,13 @@ const games = [
     available: true,
   },
   {
-    name: "Numbers",
+    name: "SumRoll",
     description:
-      "A daily number challenge built around patterns, deduction, and strategy.",
-    icon: "123",
-    status: "COMING SOON",
-    href: "#",
-    available: false,
+      "Scan the dice, hit the target, and build a streak before time runs out.",
+    icon: "⚄",
+    status: "PLAY NOW",
+    href: "/games/sumroll",
+    available: true,
   },
   {
     name: "Words",
@@ -53,10 +53,10 @@ export default function Home() {
             </span>
 
             <Link
-              href="/play"
+              href="/games"
               className="rounded-full bg-white px-5 py-2.5 text-sm font-bold text-black transition hover:bg-neutral-200"
             >
-              Play
+              Games
             </Link>
           </div>
         </div>
@@ -125,8 +125,8 @@ export default function Home() {
             </h2>
 
             <p className="mt-3 max-w-2xl text-neutral-400">
-              Start with Regions. More original KleinLogic challenges are on the
-              way.
+              Train spatial reasoning with Regions or test visual arithmetic
+              and speed with SumRoll.
             </p>
           </div>
 
@@ -190,6 +190,15 @@ export default function Home() {
                 </div>
               );
             })}
+          </div>
+
+          <div className="mt-8 text-center">
+            <Link
+              href="/games"
+              className="inline-flex min-h-12 items-center justify-center rounded-xl border border-white/15 px-7 font-bold text-neutral-200 transition hover:bg-white/5"
+            >
+              View all games →
+            </Link>
           </div>
         </div>
       </section>
