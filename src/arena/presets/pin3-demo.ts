@@ -1,0 +1,65 @@
+import type { TournamentPreset } from "../types";
+
+export const PIN3_DEMO_PRESET: TournamentPreset = {
+  id: "pin3-demo-001",
+  name: "PIN³ // DEMO 001",
+  playerCount: 50,
+  rounds: [
+    {
+      number: 1,
+      label: "Round 1",
+      challengeType: "match",
+      startingPlayers: 50,
+      advancingPlayers: 32,
+      difficultyRound: 2,
+    },
+    {
+      number: 2,
+      label: "Round 2",
+      challengeType: "build",
+      startingPlayers: 32,
+      advancingPlayers: 20,
+      difficultyRound: 4,
+    },
+    {
+      number: 3,
+      label: "Round 3",
+      challengeType: "exact",
+      startingPlayers: 20,
+      advancingPlayers: 12,
+      difficultyRound: 5,
+    },
+    {
+      number: 4,
+      label: "Round 4",
+      challengeType: "memory",
+      startingPlayers: 12,
+      advancingPlayers: 8,
+      difficultyRound: 6,
+    },
+    {
+      number: 5,
+      label: "Quarterfinal",
+      challengeType: "match",
+      startingPlayers: 8,
+      advancingPlayers: 4,
+      difficultyRound: 8,
+    },
+    {
+      number: 6,
+      label: "Semifinal",
+      challengeType: "exact",
+      startingPlayers: 4,
+      advancingPlayers: 2,
+      difficultyRound: 9,
+    },
+    {
+      number: 7,
+      label: "Championship Final",
+      challengeType: "memory",
+      startingPlayers: 2,
+      advancingPlayers: 1,
+      difficultyRound: 10,
+    },
+  ],
+};
