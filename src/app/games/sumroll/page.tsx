@@ -28,7 +28,7 @@ export default function SumRollPage() {
             SumRoll
           </h1>
           <p className="mt-3 text-neutral-400">
-            Match complete sets or build the target one die at a time.
+            Match sets, build totals, or solve exact dice constraints.
           </p>
         </header>
 

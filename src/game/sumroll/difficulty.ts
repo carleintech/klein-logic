@@ -5,6 +5,8 @@ export type SumRollDifficulty = {
   matchDiceCount: number;
   buildDiceCount: number;
   buildSolutionSize: number;
+  exactDiceCount: number;
+  exactRequiredCount: number;
 };
 
 export function getDifficulty(round: number): SumRollDifficulty {
@@ -14,6 +16,8 @@ export function getDifficulty(round: number): SumRollDifficulty {
       matchDiceCount: 3,
       buildDiceCount: 6,
       buildSolutionSize: 2,
+      exactDiceCount: 6,
+      exactRequiredCount: round === 1 ? 2 : 3,
     };
   }
 
@@ -23,14 +27,29 @@ export function getDifficulty(round: number): SumRollDifficulty {
       matchDiceCount: 4,
       buildDiceCount: 7,
       buildSolutionSize: 3,
+      exactDiceCount: 7,
+      exactRequiredCount: 3,
+    };
+  }
+
+  if (round <= 8) {
+    return {
+      seconds: 8,
+      matchDiceCount: 5,
+      buildDiceCount: 8,
+      buildSolutionSize: 4,
+      exactDiceCount: 8,
+      exactRequiredCount: 4,
     };
   }
 
   return {
-    seconds: 8,
+    seconds: 7,
     matchDiceCount: 5,
     buildDiceCount: 8,
     buildSolutionSize: 4,
+    exactDiceCount: 9,
+    exactRequiredCount: 5,
   };
 }
 
@@ -39,7 +58,7 @@ export function createChallengeRandom(
   round: number,
   runSeed: number,
 ): () => number {
-  const typeOffset = type === "match" ? 17 : 53;
+  const typeOffset = type === "match" ? 17 : type === "build" ? 53 : 89;
   let state = (runSeed * 10_007 + round * 97 + typeOffset) >>> 0;
 
   return () => {

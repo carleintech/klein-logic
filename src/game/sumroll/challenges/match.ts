@@ -1,6 +1,6 @@
 import { createChallengeRandom, getDifficulty, randomDie } from "../difficulty";
 import type {
-  ChallengeEvaluation,
+  ChallengeValidation,
   DiceSet,
   DieValue,
   GenerateChallengeOptions,
@@ -68,12 +68,20 @@ export function generateMatchChallenge({
 export function evaluateMatchAnswer(
   challenge: MatchChallenge,
   setId: string,
-): ChallengeEvaluation {
+): ChallengeValidation {
   const selectedSet = challenge.sets.find((set) => set.id === setId);
+  const total = selectedSet ? sumDice(selectedSet.values) : 0;
+  const correct = setId === challenge.correctSetId;
 
   return {
-    correct: setId === challenge.correctSetId,
-    total: selectedSet ? sumDice(selectedSet.values) : 0,
+    correct,
+    total,
     target: challenge.target,
+    selectedCount: selectedSet?.values.length ?? 0,
+    requiredCount: null,
+    sumCorrect: total === challenge.target,
+    countCorrect: true,
+    bonusPoints: 0,
+    reason: correct ? "correct" : "wrong-total",
   };
 }

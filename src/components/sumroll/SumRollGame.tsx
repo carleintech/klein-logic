@@ -3,11 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
-  evaluateBuildSelection,
-  evaluateMatchAnswer,
+  canSelectExactDie,
   generateChallenge,
+  validateChallenge,
   type BuildChallenge,
   type DieValue,
+  type ExactChallenge,
   type MatchChallenge,
   type PlayableChallengeType,
   type SumRollChallenge,
@@ -17,6 +18,7 @@ const MAX_LIVES = 3;
 const TOTAL_ROUNDS = 10;
 const BASE_SCORE = 200;
 const BUILD_BONUS = 50;
+const EXACT_BONUS = 75;
 const SPEED_BONUS = 100;
 
 const DIE_SYMBOLS: Record<DieValue, string> = {
@@ -52,6 +54,11 @@ const MODE_COPY: Record<
     name: "Build",
     description: "Select individual dice to create the target sum.",
   },
+  exact: {
+    level: "Level 3",
+    name: "Exact",
+    description: "Reach the target using exactly the required number of dice.",
+  },
 };
 
 export default function SumRollGame() {
@@ -72,6 +79,7 @@ export default function SumRollGame() {
   const [completed, setCompleted] = useState(false);
   const [selectedSet, setSelectedSet] = useState<string | null>(null);
   const [selectedDice, setSelectedDice] = useState<string[]>([]);
+  const [deselections, setDeselections] = useState(0);
   const [feedback, setFeedback] = useState<Feedback>(null);
   const transitionTimer = useRef<number | null>(null);
 
@@ -92,6 +100,7 @@ export default function SumRollGame() {
       setTimeRemaining(nextChallenge.seconds);
       setSelectedSet(null);
       setSelectedDice([]);
+      setDeselections(0);
       setFeedback(null);
       setLocked(false);
       return nextRound;
@@ -157,7 +166,7 @@ export default function SumRollGame() {
     };
   }, []);
 
-  function completeCorrectAnswer(extraPoints = 0) {
+  function completeCorrectAnswer(extraPoints = 0, successLabel?: string) {
     const nextCombo = combo + 1;
     const fastThreshold = Math.ceil(challenge.seconds * 0.7);
     const earned =
@@ -172,7 +181,9 @@ export default function SumRollGame() {
     setFeedback({
       tone: "success",
       text:
-        timeRemaining >= fastThreshold
+        successLabel
+          ? `${successLabel} +${earned}`
+          : timeRemaining >= fastThreshold
           ? `Lightning answer! +${earned}`
           : `Correct! +${earned}`,
     });
@@ -185,7 +196,7 @@ export default function SumRollGame() {
     }
 
     setSelectedSet(setId);
-    const result = evaluateMatchAnswer(challenge, setId);
+    const result = validateChallenge(challenge, { type: "match", setId });
 
     if (!result.correct) {
       loseLife(`${result.total} misses the target.`);
@@ -195,38 +206,79 @@ export default function SumRollGame() {
     completeCorrectAnswer();
   }
 
-  function handleBuildDie(dieId: string) {
-    if (locked || gameOver || completed || challenge.type !== "build") {
+  function handleDiceToggle(dieId: string) {
+    if (locked || gameOver || completed || challenge.type === "match") {
       return;
     }
 
-    setSelectedDice((current) =>
-      current.includes(dieId)
-        ? current.filter((id) => id !== dieId)
-        : [...current, dieId],
-    );
+    if (selectedDice.includes(dieId)) {
+      setSelectedDice((current) => current.filter((id) => id !== dieId));
+
+      if (challenge.type === "exact") {
+        setDeselections((current) => current + 1);
+      }
+
+      return;
+    }
+
+    if (
+      challenge.type === "exact" &&
+      !canSelectExactDie(challenge, selectedDice, dieId)
+    ) {
+      return;
+    }
+
+    setSelectedDice((current) => [...current, dieId]);
   }
 
-  function handleBuildSubmit() {
+  function handleSelectionSubmit() {
     if (
       locked ||
       gameOver ||
       completed ||
-      challenge.type !== "build" ||
+      challenge.type === "match" ||
       selectedDice.length === 0
     ) {
       return;
     }
 
-    const result = evaluateBuildSelection(challenge, selectedDice);
+    const result = validateChallenge(
+      challenge,
+      challenge.type === "build"
+        ? { type: "build", selectedIds: selectedDice }
+        : { type: "exact", selectedIds: selectedDice, deselections },
+    );
 
     if (!result.correct) {
-      const direction = result.total < result.target ? "below" : "above";
-      loseLife(`${result.total} is ${direction} the target.`);
+      if (challenge.type === "exact") {
+        if (result.reason === "wrong-count") {
+          loseLife(
+            `Target reached, but use exactly ${challenge.exactCount} dice.`,
+          );
+        } else if (result.reason === "wrong-total") {
+          loseLife(
+            `${result.selectedCount} dice is correct, but the total is ${result.total}.`,
+          );
+        } else {
+          loseLife(
+            `${result.total} with ${result.selectedCount} dice misses both constraints.`,
+          );
+        }
+      } else {
+        const direction = result.total < result.target ? "below" : "above";
+        loseLife(`${result.total} is ${direction} the target.`);
+      }
+
       return;
     }
 
-    completeCorrectAnswer(BUILD_BONUS);
+    const modeBonus = challenge.type === "exact" ? EXACT_BONUS : BUILD_BONUS;
+    const cleanLabel =
+      challenge.type === "exact" && result.bonusPoints > 0
+        ? "Clean solve!"
+        : undefined;
+
+    completeCorrectAnswer(modeBonus + result.bonusPoints, cleanLabel);
   }
 
   function resetRun(nextMode: PlayableChallengeType, nextSeed: number) {
@@ -254,6 +306,7 @@ export default function SumRollGame() {
     setCompleted(false);
     setSelectedSet(null);
     setSelectedDice([]);
+    setDeselections(0);
     setFeedback(null);
   }
 
@@ -271,7 +324,7 @@ export default function SumRollGame() {
 
   return (
     <div className="mx-auto w-full max-w-2xl">
-      <div className="mb-5 grid grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-white/[0.025] p-2">
+      <div className="mb-5 grid grid-cols-3 gap-2 rounded-2xl border border-white/10 bg-white/[0.025] p-2">
         {(Object.keys(MODE_COPY) as PlayableChallengeType[]).map(
           (challengeType) => {
             const copy = MODE_COPY[challengeType];
@@ -365,6 +418,7 @@ export default function SumRollGame() {
             challenge={challenge}
             combo={combo}
             selectedDice={selectedDice}
+            deselections={deselections}
           />
 
           {challenge.type === "match" ? (
@@ -375,12 +429,12 @@ export default function SumRollGame() {
               onAnswer={handleMatchAnswer}
             />
           ) : (
-            <BuildBoard
+            <SelectionBoard
               challenge={challenge}
               locked={locked}
               selectedDice={selectedDice}
-              onToggle={handleBuildDie}
-              onSubmit={handleBuildSubmit}
+              onToggle={handleDiceToggle}
+              onSubmit={handleSelectionSubmit}
             />
           )}
 
@@ -428,20 +482,31 @@ function ChallengeHeader({
   challenge,
   combo,
   selectedDice,
+  deselections,
 }: {
   challenge: SumRollChallenge;
   combo: number;
   selectedDice: string[];
+  deselections: number;
 }) {
-  const buildTotal =
-    challenge.type === "build"
-      ? evaluateBuildSelection(challenge, selectedDice).total
-      : null;
+  const selectionResult =
+    challenge.type === "match"
+      ? null
+      : validateChallenge(
+          challenge,
+          challenge.type === "build"
+            ? { type: "build", selectedIds: selectedDice }
+            : { type: "exact", selectedIds: selectedDice, deselections },
+        );
 
   return (
     <div className="mb-6 text-center">
       <p className="text-xs font-black uppercase tracking-[0.32em] text-violet-300">
-        {challenge.type === "match" ? "Hit the target" : "Build the target"}
+        {challenge.type === "match"
+          ? "Hit the target"
+          : challenge.type === "build"
+            ? "Build the target"
+            : "Exact challenge"}
       </p>
       <div className="mt-2 text-7xl font-black tracking-[-0.06em] text-white sm:text-8xl">
         {challenge.target}
@@ -449,21 +514,38 @@ function ChallengeHeader({
       <p className="mt-3 text-sm text-neutral-400">
         {challenge.type === "match"
           ? "Which dice set adds up to this number?"
-          : "Select any combination of dice, then lock your answer."}
+          : challenge.type === "build"
+            ? "Select any combination of dice, then lock your answer."
+            : `Reach the target using exactly ${challenge.exactCount} dice.`}
       </p>
 
-      {buildTotal !== null && (
-        <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm">
-          <span className="text-neutral-500">Your sum</span>
-          <strong
-            className={
-              buildTotal === challenge.target
-                ? "text-emerald-300"
-                : "text-white"
-            }
-          >
-            {buildTotal}
-          </strong>
+      {selectionResult && (
+        <div className="mt-4 flex flex-wrap justify-center gap-2">
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm">
+            <span className="text-neutral-500">Your sum</span>
+            <strong
+              className={
+                selectionResult.sumCorrect ? "text-emerald-300" : "text-white"
+              }
+            >
+              {selectionResult.total}
+            </strong>
+          </div>
+
+          {challenge.type === "exact" && (
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm">
+              <span className="text-neutral-500">Dice</span>
+              <strong
+                className={
+                  selectionResult.countCorrect
+                    ? "text-emerald-300"
+                    : "text-white"
+                }
+              >
+                {selectionResult.selectedCount}/{challenge.exactCount}
+              </strong>
+            </div>
+          )}
         </div>
       )}
 
@@ -525,14 +607,14 @@ function MatchBoard({
   );
 }
 
-function BuildBoard({
+function SelectionBoard({
   challenge,
   locked,
   selectedDice,
   onToggle,
   onSubmit,
 }: {
-  challenge: BuildChallenge;
+  challenge: BuildChallenge | ExactChallenge;
   locked: boolean;
   selectedDice: string[];
   onToggle: (dieId: string) => void;
@@ -543,12 +625,16 @@ function BuildBoard({
       <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
         {challenge.dice.map((die) => {
           const selected = selectedDice.includes(die.id);
+          const unavailable =
+            challenge.type === "exact" &&
+            !selected &&
+            !canSelectExactDie(challenge, selectedDice, die.id);
 
           return (
             <button
               key={die.id}
               type="button"
-              disabled={locked}
+              disabled={locked || unavailable}
               aria-pressed={selected}
               aria-label={`Die ${die.value}`}
               onClick={() => onToggle(die.id)}
@@ -556,6 +642,8 @@ function BuildBoard({
                 "flex aspect-square items-center justify-center rounded-2xl border transition",
                 selected
                   ? "-translate-y-1 border-violet-300 bg-violet-400/20 shadow-lg shadow-violet-950/40 ring-2 ring-violet-400/30"
+                  : unavailable
+                    ? "cursor-not-allowed border-white/5 bg-white/[0.02] opacity-25"
                   : "border-white/10 bg-white/[0.035] hover:-translate-y-0.5 hover:border-violet-400/50 hover:bg-white/[0.06]",
               ].join(" ")}
             >
@@ -571,7 +659,9 @@ function BuildBoard({
         onClick={onSubmit}
         className="mt-4 w-full rounded-xl bg-violet-400 px-5 py-3 font-black text-black transition hover:bg-violet-300 disabled:cursor-not-allowed disabled:opacity-30"
       >
-        Lock answer
+        {challenge.type === "exact"
+          ? `Lock ${challenge.exactCount}-dice answer`
+          : "Lock answer"}
       </button>
     </div>
   );

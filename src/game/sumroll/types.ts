@@ -2,7 +2,10 @@ export type DieValue = 1 | 2 | 3 | 4 | 5 | 6;
 
 export type ChallengeType = "match" | "build" | "exact" | "rush" | "memory";
 
-export type PlayableChallengeType = Extract<ChallengeType, "match" | "build">;
+export type PlayableChallengeType = Extract<
+  ChallengeType,
+  "match" | "build" | "exact"
+>;
 
 export type DiceSet = {
   id: string;
@@ -33,13 +36,41 @@ export type BuildChallenge = ChallengeBase & {
   solutionIds: string[];
 };
 
-export type SumRollChallenge = MatchChallenge | BuildChallenge;
+export type ExactChallenge = ChallengeBase & {
+  type: "exact";
+  dice: SelectableDie[];
+  exactCount: number;
+  solutionIds: string[];
+};
 
-export type ChallengeEvaluation = {
+export type SumRollChallenge =
+  | MatchChallenge
+  | BuildChallenge
+  | ExactChallenge;
+
+export type ChallengeValidationReason =
+  | "correct"
+  | "wrong-total"
+  | "wrong-count"
+  | "wrong-total-and-count"
+  | "invalid-answer";
+
+export type ChallengeValidation = {
   correct: boolean;
   total: number;
   target: number;
+  selectedCount: number;
+  requiredCount: number | null;
+  sumCorrect: boolean;
+  countCorrect: boolean;
+  bonusPoints: number;
+  reason: ChallengeValidationReason;
 };
+
+export type ChallengeAnswer =
+  | { type: "match"; setId: string }
+  | { type: "build"; selectedIds: string[] }
+  | { type: "exact"; selectedIds: string[]; deselections: number };
 
 export type GenerateChallengeOptions = {
   round: number;

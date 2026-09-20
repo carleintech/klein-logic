@@ -6,7 +6,7 @@ import {
 } from "../difficulty";
 import type {
   BuildChallenge,
-  ChallengeEvaluation,
+  ChallengeValidation,
   GenerateChallengeOptions,
   SelectableDie,
 } from "../types";
@@ -44,16 +44,24 @@ export function generateBuildChallenge({
 export function evaluateBuildSelection(
   challenge: BuildChallenge,
   selectedIds: string[],
-): ChallengeEvaluation {
+): ChallengeValidation {
   const selectedIdSet = new Set(selectedIds);
   const total = challenge.dice.reduce(
     (sum, die) => sum + (selectedIdSet.has(die.id) ? die.value : 0),
     0,
   );
 
+  const correct = selectedIds.length > 0 && total === challenge.target;
+
   return {
-    correct: selectedIds.length > 0 && total === challenge.target,
+    correct,
     total,
     target: challenge.target,
+    selectedCount: selectedIds.length,
+    requiredCount: null,
+    sumCorrect: total === challenge.target,
+    countCorrect: true,
+    bonusPoints: 0,
+    reason: correct ? "correct" : "wrong-total",
   };
 }
