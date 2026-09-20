@@ -3,16 +3,20 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
-  generateRound,
-  type DiceSet,
+  evaluateBuildSelection,
+  evaluateMatchAnswer,
+  generateChallenge,
+  type BuildChallenge,
   type DieValue,
-  type SumRollRound,
+  type MatchChallenge,
+  type PlayableChallengeType,
+  type SumRollChallenge,
 } from "@/game/sumroll/engine";
 
 const MAX_LIVES = 3;
 const TOTAL_ROUNDS = 10;
-const ROUND_SECONDS = 10;
 const BASE_SCORE = 200;
+const BUILD_BONUS = 50;
 const SPEED_BONUS = 100;
 
 const DIE_SYMBOLS: Record<DieValue, string> = {
@@ -24,24 +28,50 @@ const DIE_SYMBOLS: Record<DieValue, string> = {
   6: "⚅",
 };
 
+const INITIAL_CHALLENGE = generateChallenge("match", {
+  round: 1,
+  runSeed: 1,
+});
+
 type Feedback = {
   tone: "success" | "danger" | "warning";
   text: string;
 } | null;
 
+const MODE_COPY: Record<
+  PlayableChallengeType,
+  { level: string; name: string; description: string }
+> = {
+  match: {
+    level: "Level 1",
+    name: "Match",
+    description: "Choose the complete dice set that equals the target.",
+  },
+  build: {
+    level: "Level 2",
+    name: "Build",
+    description: "Select individual dice to create the target sum.",
+  },
+};
+
 export default function SumRollGame() {
+  const [mode, setMode] = useState<PlayableChallengeType>("match");
   const [runSeed, setRunSeed] = useState(1);
   const [roundNumber, setRoundNumber] = useState(1);
-  const [round, setRound] = useState<SumRollRound>(() => generateRound(1, 1));
+  const [challenge, setChallenge] =
+    useState<SumRollChallenge>(INITIAL_CHALLENGE);
   const [lives, setLives] = useState(MAX_LIVES);
   const [score, setScore] = useState(0);
   const [combo, setCombo] = useState(0);
   const [bestCombo, setBestCombo] = useState(0);
-  const [timeRemaining, setTimeRemaining] = useState(ROUND_SECONDS);
+  const [timeRemaining, setTimeRemaining] = useState(
+    INITIAL_CHALLENGE.seconds,
+  );
   const [locked, setLocked] = useState(false);
   const [gameOver, setGameOver] = useState(false);
   const [completed, setCompleted] = useState(false);
   const [selectedSet, setSelectedSet] = useState<string | null>(null);
+  const [selectedDice, setSelectedDice] = useState<string[]>([]);
   const [feedback, setFeedback] = useState<Feedback>(null);
   const transitionTimer = useRef<number | null>(null);
 
@@ -53,14 +83,20 @@ export default function SumRollGame() {
       }
 
       const nextRound = currentRound + 1;
-      setRound(generateRound(nextRound, runSeed));
-      setTimeRemaining(ROUND_SECONDS);
+      const nextChallenge = generateChallenge(mode, {
+        round: nextRound,
+        runSeed,
+      });
+
+      setChallenge(nextChallenge);
+      setTimeRemaining(nextChallenge.seconds);
       setSelectedSet(null);
+      setSelectedDice([]);
       setFeedback(null);
       setLocked(false);
       return nextRound;
     });
-  }, [runSeed]);
+  }, [mode, runSeed]);
 
   const scheduleAdvance = useCallback(
     (delay: number) => {
@@ -121,62 +157,153 @@ export default function SumRollGame() {
     };
   }, []);
 
-  function handleAnswer(diceSet: DiceSet) {
-    if (locked || gameOver || completed) {
-      return;
-    }
+  function completeCorrectAnswer(extraPoints = 0) {
+    const nextCombo = combo + 1;
+    const fastThreshold = Math.ceil(challenge.seconds * 0.7);
+    const earned =
+      BASE_SCORE +
+      extraPoints +
+      (timeRemaining >= fastThreshold ? SPEED_BONUS : 0);
 
     setLocked(true);
-    setSelectedSet(diceSet.id);
-
-    if (diceSet.id !== round.correctSetId) {
-      loseLife("That set misses the target.");
-      return;
-    }
-
-    const nextCombo = combo + 1;
-    const earned = BASE_SCORE + (timeRemaining >= 7 ? SPEED_BONUS : 0);
-
     setCombo(nextCombo);
     setBestCombo((current) => Math.max(current, nextCombo));
     setScore((current) => current + earned);
     setFeedback({
       tone: "success",
       text:
-        timeRemaining >= 7
+        timeRemaining >= fastThreshold
           ? `Lightning answer! +${earned}`
           : `Correct! +${earned}`,
     });
     scheduleAdvance(850);
   }
 
-  function restartGame() {
+  function handleMatchAnswer(setId: string) {
+    if (locked || gameOver || completed || challenge.type !== "match") {
+      return;
+    }
+
+    setSelectedSet(setId);
+    const result = evaluateMatchAnswer(challenge, setId);
+
+    if (!result.correct) {
+      loseLife(`${result.total} misses the target.`);
+      return;
+    }
+
+    completeCorrectAnswer();
+  }
+
+  function handleBuildDie(dieId: string) {
+    if (locked || gameOver || completed || challenge.type !== "build") {
+      return;
+    }
+
+    setSelectedDice((current) =>
+      current.includes(dieId)
+        ? current.filter((id) => id !== dieId)
+        : [...current, dieId],
+    );
+  }
+
+  function handleBuildSubmit() {
+    if (
+      locked ||
+      gameOver ||
+      completed ||
+      challenge.type !== "build" ||
+      selectedDice.length === 0
+    ) {
+      return;
+    }
+
+    const result = evaluateBuildSelection(challenge, selectedDice);
+
+    if (!result.correct) {
+      const direction = result.total < result.target ? "below" : "above";
+      loseLife(`${result.total} is ${direction} the target.`);
+      return;
+    }
+
+    completeCorrectAnswer(BUILD_BONUS);
+  }
+
+  function resetRun(nextMode: PlayableChallengeType, nextSeed: number) {
     if (transitionTimer.current !== null) {
       window.clearTimeout(transitionTimer.current);
       transitionTimer.current = null;
     }
 
-    const nextRunSeed = runSeed + 1;
+    const nextChallenge = generateChallenge(nextMode, {
+      round: 1,
+      runSeed: nextSeed,
+    });
 
-    setRunSeed(nextRunSeed);
+    setMode(nextMode);
+    setRunSeed(nextSeed);
     setRoundNumber(1);
-    setRound(generateRound(1, nextRunSeed));
+    setChallenge(nextChallenge);
     setLives(MAX_LIVES);
     setScore(0);
     setCombo(0);
     setBestCombo(0);
-    setTimeRemaining(ROUND_SECONDS);
+    setTimeRemaining(nextChallenge.seconds);
     setLocked(false);
     setGameOver(false);
     setCompleted(false);
     setSelectedSet(null);
+    setSelectedDice([]);
     setFeedback(null);
   }
 
-  const timerPercent = (timeRemaining / ROUND_SECONDS) * 100;
+  function switchMode(nextMode: PlayableChallengeType) {
+    if (nextMode !== mode) {
+      resetRun(nextMode, runSeed + 1);
+    }
+  }
+
+  function restartGame() {
+    resetRun(mode, runSeed + 1);
+  }
+
+  const timerPercent = (timeRemaining / challenge.seconds) * 100;
 
   return (
     <div className="mx-auto w-full max-w-2xl">
+      <div className="mb-5 grid grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-white/[0.025] p-2">
+        {(Object.keys(MODE_COPY) as PlayableChallengeType[]).map(
+          (challengeType) => {
+            const copy = MODE_COPY[challengeType];
+            const active = mode === challengeType;
+
+            return (
+              <button
+                key={challengeType}
+                type="button"
+                onClick={() => switchMode(challengeType)}
+                aria-pressed={active}
+                className={[
+                  "rounded-xl px-3 py-3 text-left transition sm:px-4",
+                  active
+                    ? "bg-violet-400 text-black"
+                    : "text-neutral-400 hover:bg-white/5 hover:text-white",
+                ].join(" ")}
+              >
+                <span className="block text-[9px] font-black uppercase tracking-[0.2em] opacity-70">
+                  {copy.level}
+                </span>
+                <span className="mt-1 block font-black">{copy.name}</span>
+              </button>
+            );
+          },
+        )}
+      </div>
+
+      <p className="mb-5 text-center text-sm text-neutral-500">
+        {MODE_COPY[mode].description}
+      </p>
+
       <div className="mb-5 rounded-3xl border border-white/10 bg-white/[0.035] p-4 shadow-2xl shadow-black/20 sm:p-5">
         <div className="grid grid-cols-3 gap-3">
           <HudStat label="Lives">
@@ -234,64 +361,28 @@ export default function SumRollGame() {
 
       {!gameOver && !completed && (
         <>
-          <div className="mb-6 text-center">
-            <p className="text-xs font-black uppercase tracking-[0.32em] text-violet-300">
-              Hit the target
-            </p>
-            <div className="mt-2 text-7xl font-black tracking-[-0.06em] text-white sm:text-8xl">
-              {round.target}
-            </div>
-            <p className="mt-3 text-sm text-neutral-400">
-              Which dice set adds up to this number?
-            </p>
+          <ChallengeHeader
+            challenge={challenge}
+            combo={combo}
+            selectedDice={selectedDice}
+          />
 
-            {combo >= 2 && (
-              <div className="mt-4 inline-flex rounded-full border border-orange-400/30 bg-orange-400/10 px-4 py-2 text-sm font-black text-orange-300">
-                COMBO ×{combo}
-              </div>
-            )}
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            {round.sets.map((diceSet, index) => {
-              const selected = selectedSet === diceSet.id;
-              const correct = diceSet.id === round.correctSetId;
-              let stateStyle =
-                "border-white/10 bg-white/[0.035] hover:-translate-y-0.5 hover:border-violet-400/50 hover:bg-white/[0.06]";
-
-              if (locked && correct) {
-                stateStyle = "border-emerald-400 bg-emerald-950/50";
-              } else if (locked && selected) {
-                stateStyle = "border-red-500 bg-red-950/50";
-              }
-
-              return (
-                <button
-                  type="button"
-                  key={diceSet.id}
-                  disabled={locked}
-                  onClick={() => handleAnswer(diceSet)}
-                  aria-label={`Set ${String.fromCharCode(65 + index)}: ${diceSet.values.join(", ")}`}
-                  className={`min-h-36 rounded-3xl border p-4 transition sm:min-h-44 sm:p-5 ${stateStyle}`}
-                >
-                  <p className="mb-4 text-[10px] font-black uppercase tracking-[0.24em] text-neutral-500">
-                    Set {String.fromCharCode(65 + index)}
-                  </p>
-                  <div className="flex flex-wrap items-center justify-center gap-1 sm:gap-2">
-                    {diceSet.values.map((value, dieIndex) => (
-                      <span
-                        key={`${diceSet.id}-${dieIndex}`}
-                        className="text-4xl leading-none text-white sm:text-5xl"
-                        aria-hidden="true"
-                      >
-                        {DIE_SYMBOLS[value]}
-                      </span>
-                    ))}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
+          {challenge.type === "match" ? (
+            <MatchBoard
+              challenge={challenge}
+              locked={locked}
+              selectedSet={selectedSet}
+              onAnswer={handleMatchAnswer}
+            />
+          ) : (
+            <BuildBoard
+              challenge={challenge}
+              locked={locked}
+              selectedDice={selectedDice}
+              onToggle={handleBuildDie}
+              onSubmit={handleBuildSubmit}
+            />
+          )}
 
           {feedback && <FeedbackCard feedback={feedback} />}
 
@@ -304,7 +395,7 @@ export default function SumRollGame() {
 
       {gameOver && (
         <ResultCard
-          eyebrow="Run ended"
+          eyebrow={`${MODE_COPY[mode].name} run ended`}
           title="Out of lives"
           description="Pressure won this round. Reset, refocus, and go again."
           accent="red"
@@ -318,7 +409,7 @@ export default function SumRollGame() {
 
       {completed && (
         <ResultCard
-          eyebrow="10 rounds survived"
+          eyebrow={`${MODE_COPY[mode].name} · 10 rounds survived`}
           title="SumRoll complete!"
           description="Fast eyes, clean arithmetic, strong finish."
           accent="emerald"
@@ -330,6 +421,170 @@ export default function SumRollGame() {
         />
       )}
     </div>
+  );
+}
+
+function ChallengeHeader({
+  challenge,
+  combo,
+  selectedDice,
+}: {
+  challenge: SumRollChallenge;
+  combo: number;
+  selectedDice: string[];
+}) {
+  const buildTotal =
+    challenge.type === "build"
+      ? evaluateBuildSelection(challenge, selectedDice).total
+      : null;
+
+  return (
+    <div className="mb-6 text-center">
+      <p className="text-xs font-black uppercase tracking-[0.32em] text-violet-300">
+        {challenge.type === "match" ? "Hit the target" : "Build the target"}
+      </p>
+      <div className="mt-2 text-7xl font-black tracking-[-0.06em] text-white sm:text-8xl">
+        {challenge.target}
+      </div>
+      <p className="mt-3 text-sm text-neutral-400">
+        {challenge.type === "match"
+          ? "Which dice set adds up to this number?"
+          : "Select any combination of dice, then lock your answer."}
+      </p>
+
+      {buildTotal !== null && (
+        <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm">
+          <span className="text-neutral-500">Your sum</span>
+          <strong
+            className={
+              buildTotal === challenge.target
+                ? "text-emerald-300"
+                : "text-white"
+            }
+          >
+            {buildTotal}
+          </strong>
+        </div>
+      )}
+
+      {combo >= 2 && (
+        <div className="mt-4 ml-2 inline-flex rounded-full border border-orange-400/30 bg-orange-400/10 px-4 py-2 text-sm font-black text-orange-300">
+          COMBO ×{combo}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MatchBoard({
+  challenge,
+  locked,
+  selectedSet,
+  onAnswer,
+}: {
+  challenge: MatchChallenge;
+  locked: boolean;
+  selectedSet: string | null;
+  onAnswer: (setId: string) => void;
+}) {
+  return (
+    <div className="grid grid-cols-2 gap-3">
+      {challenge.sets.map((diceSet, index) => {
+        const selected = selectedSet === diceSet.id;
+        const correct = diceSet.id === challenge.correctSetId;
+        let stateStyle =
+          "border-white/10 bg-white/[0.035] hover:-translate-y-0.5 hover:border-violet-400/50 hover:bg-white/[0.06]";
+
+        if (locked && correct) {
+          stateStyle = "border-emerald-400 bg-emerald-950/50";
+        } else if (locked && selected) {
+          stateStyle = "border-red-500 bg-red-950/50";
+        }
+
+        return (
+          <button
+            type="button"
+            key={diceSet.id}
+            disabled={locked}
+            onClick={() => onAnswer(diceSet.id)}
+            aria-label={`Set ${String.fromCharCode(65 + index)}: ${diceSet.values.join(", ")}`}
+            className={`min-h-36 rounded-3xl border p-4 transition sm:min-h-44 sm:p-5 ${stateStyle}`}
+          >
+            <p className="mb-4 text-[10px] font-black uppercase tracking-[0.24em] text-neutral-500">
+              Set {String.fromCharCode(65 + index)}
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-1 sm:gap-2">
+              {diceSet.values.map((value, dieIndex) => (
+                <Die key={`${diceSet.id}-${dieIndex}`} value={value} />
+              ))}
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function BuildBoard({
+  challenge,
+  locked,
+  selectedDice,
+  onToggle,
+  onSubmit,
+}: {
+  challenge: BuildChallenge;
+  locked: boolean;
+  selectedDice: string[];
+  onToggle: (dieId: string) => void;
+  onSubmit: () => void;
+}) {
+  return (
+    <div>
+      <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
+        {challenge.dice.map((die) => {
+          const selected = selectedDice.includes(die.id);
+
+          return (
+            <button
+              key={die.id}
+              type="button"
+              disabled={locked}
+              aria-pressed={selected}
+              aria-label={`Die ${die.value}`}
+              onClick={() => onToggle(die.id)}
+              className={[
+                "flex aspect-square items-center justify-center rounded-2xl border transition",
+                selected
+                  ? "-translate-y-1 border-violet-300 bg-violet-400/20 shadow-lg shadow-violet-950/40 ring-2 ring-violet-400/30"
+                  : "border-white/10 bg-white/[0.035] hover:-translate-y-0.5 hover:border-violet-400/50 hover:bg-white/[0.06]",
+              ].join(" ")}
+            >
+              <Die value={die.value} large />
+            </button>
+          );
+        })}
+      </div>
+
+      <button
+        type="button"
+        disabled={locked || selectedDice.length === 0}
+        onClick={onSubmit}
+        className="mt-4 w-full rounded-xl bg-violet-400 px-5 py-3 font-black text-black transition hover:bg-violet-300 disabled:cursor-not-allowed disabled:opacity-30"
+      >
+        Lock answer
+      </button>
+    </div>
+  );
+}
+
+function Die({ value, large = false }: { value: DieValue; large?: boolean }) {
+  return (
+    <span
+      className={large ? "text-6xl leading-none" : "text-4xl leading-none sm:text-5xl"}
+      aria-hidden="true"
+    >
+      {DIE_SYMBOLS[value]}
+    </span>
   );
 }
 
@@ -363,7 +618,10 @@ function FeedbackCard({ feedback }: { feedback: NonNullable<Feedback> }) {
         : "border-amber-500/30 bg-amber-950/40 text-amber-200";
 
   return (
-    <div role="status" className={`mt-5 rounded-2xl border p-4 text-center font-bold ${style}`}>
+    <div
+      role="status"
+      className={`mt-5 rounded-2xl border p-4 text-center font-bold ${style}`}
+    >
       {feedback.text}
     </div>
   );
@@ -409,7 +667,9 @@ function ResultCard({
     <div className={`overflow-hidden rounded-3xl border ${styles.shell}`}>
       <div className="p-7 text-center">
         <div className="text-5xl">{styles.icon}</div>
-        <p className={`mt-4 text-xs font-black uppercase tracking-[0.25em] ${styles.eyebrow}`}>
+        <p
+          className={`mt-4 text-xs font-black uppercase tracking-[0.25em] ${styles.eyebrow}`}
+        >
           {eyebrow}
         </p>
         <h2 className="mt-2 text-3xl font-black text-white">{title}</h2>

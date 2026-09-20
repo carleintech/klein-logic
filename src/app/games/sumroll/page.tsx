@@ -28,7 +28,7 @@ export default function SumRollPage() {
             SumRoll
           </h1>
           <p className="mt-3 text-neutral-400">
-            Find the matching dice. Think fast. Build the streak.
+            Match complete sets or build the target one die at a time.
           </p>
         </header>
 
