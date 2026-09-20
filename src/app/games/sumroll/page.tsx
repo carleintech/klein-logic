@@ -5,7 +5,7 @@ import SumRollExperience from "@/components/sumroll/SumRollExperience";
 
 export const metadata: Metadata = {
   title: "SumRoll",
-  description: "Find the dice set that hits the target before time runs out.",
+  description: "Train visual arithmetic, exact sums, and numeric memory.",
 };
 
 export default function SumRollPage() {
@@ -28,7 +28,7 @@ export default function SumRollPage() {
             SumRoll
           </h1>
           <p className="mt-3 text-neutral-400">
-            Master each challenge, then take all three into a 60-second Rush.
+            Master Match, Build, Exact, and Memory—then face a 60-second Rush.
           </p>
         </header>
 

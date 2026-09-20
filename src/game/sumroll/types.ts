@@ -1,13 +1,12 @@
 export type DieValue = 1 | 2 | 3 | 4 | 5 | 6;
 
-export type ChallengeType = "match" | "build" | "exact";
+export type ChallengeType = "match" | "build" | "exact" | "memory";
 
 export type PlayableChallengeType = ChallengeType;
 
 export type SumRollModeType =
   | "classic"
   | "rush"
-  | "memory"
   | "daily"
   | "arena";
 
@@ -47,10 +46,21 @@ export type ExactChallenge = ChallengeBase & {
   solutionIds: string[];
 };
 
+export type MemoryChallenge = ChallengeBase & {
+  type: "memory";
+  dice: DieValue[];
+  options: number[];
+  readyDurationMs: number;
+  exposureDurationMs: number;
+  hiddenDurationMs: number;
+  responseDurationMs: number;
+};
+
 export type SumRollChallenge =
   | MatchChallenge
   | BuildChallenge
-  | ExactChallenge;
+  | ExactChallenge
+  | MemoryChallenge;
 
 export type ChallengeValidationReason =
   | "correct"
@@ -74,7 +84,8 @@ export type ChallengeValidation = {
 export type ChallengeAnswer =
   | { type: "match"; setId: string }
   | { type: "build"; selectedIds: string[] }
-  | { type: "exact"; selectedIds: string[]; deselections: number };
+  | { type: "exact"; selectedIds: string[]; deselections: number }
+  | { type: "memory"; total: number };
 
 export type GenerateChallengeOptions = {
   round: number;

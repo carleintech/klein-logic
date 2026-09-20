@@ -7,6 +7,11 @@ export type SumRollDifficulty = {
   buildSolutionSize: number;
   exactDiceCount: number;
   exactRequiredCount: number;
+  memoryDiceCount: number;
+  memoryReadyMs: number;
+  memoryExposureMs: number;
+  memoryHiddenMs: number;
+  memoryResponseMs: number;
 };
 
 export function getDifficulty(round: number): SumRollDifficulty {
@@ -18,6 +23,11 @@ export function getDifficulty(round: number): SumRollDifficulty {
       buildSolutionSize: 2,
       exactDiceCount: 6,
       exactRequiredCount: round === 1 ? 2 : 3,
+      memoryDiceCount: 3,
+      memoryReadyMs: 800,
+      memoryExposureMs: 1_600,
+      memoryHiddenMs: 400,
+      memoryResponseMs: 8_000,
     };
   }
 
@@ -29,6 +39,11 @@ export function getDifficulty(round: number): SumRollDifficulty {
       buildSolutionSize: 3,
       exactDiceCount: 7,
       exactRequiredCount: 3,
+      memoryDiceCount: 4,
+      memoryReadyMs: 700,
+      memoryExposureMs: 1_400,
+      memoryHiddenMs: 350,
+      memoryResponseMs: 7_000,
     };
   }
 
@@ -40,6 +55,11 @@ export function getDifficulty(round: number): SumRollDifficulty {
       buildSolutionSize: 4,
       exactDiceCount: 8,
       exactRequiredCount: 4,
+      memoryDiceCount: 5,
+      memoryReadyMs: 650,
+      memoryExposureMs: 1_200,
+      memoryHiddenMs: 300,
+      memoryResponseMs: 6_500,
     };
   }
 
@@ -50,6 +70,11 @@ export function getDifficulty(round: number): SumRollDifficulty {
     buildSolutionSize: 4,
     exactDiceCount: 9,
     exactRequiredCount: 5,
+    memoryDiceCount: 6,
+    memoryReadyMs: 600,
+    memoryExposureMs: 1_000,
+    memoryHiddenMs: 250,
+    memoryResponseMs: 6_000,
   };
 }
 
@@ -58,7 +83,8 @@ export function createChallengeRandom(
   round: number,
   runSeed: number,
 ): () => number {
-  const typeOffset = type === "match" ? 17 : type === "build" ? 53 : 89;
+  const typeOffset =
+    type === "match" ? 17 : type === "build" ? 53 : type === "exact" ? 89 : 127;
   let state = (runSeed * 10_007 + round * 97 + typeOffset) >>> 0;
 
   return () => {

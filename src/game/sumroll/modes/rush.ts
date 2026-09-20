@@ -6,6 +6,9 @@ import type {
   SumRollChallenge,
 } from "../types";
 
+export type RushChallengeType = Exclude<PlayableChallengeType, "memory">;
+export type RushChallenge = Exclude<SumRollChallenge, { type: "memory" }>;
+
 export const RUSH_DURATION_MS = 60_000;
 export const RUSH_WRONG_PENALTY_MS = 3_000;
 export const RUSH_SKIP_PENALTY_MS = 2_000;
@@ -18,7 +21,7 @@ export type RushSession = {
   status: "playing" | "complete";
   remainingMs: number;
   challengeIndex: number;
-  challenge: SumRollChallenge;
+  challenge: RushChallenge;
   score: number;
   solved: number;
   attempts: number;
@@ -217,19 +220,19 @@ function createRushChallenge(
   seed: number,
   challengeIndex: number,
   elapsedSeconds: number,
-): SumRollChallenge {
+): RushChallenge {
   const plan = getRushChallengePlan(elapsedSeconds, challengeIndex);
 
   return generateChallenge(plan.type, {
     round: plan.difficultyRound,
     runSeed: seed * 1_000 + challengeIndex + 1,
-  });
+  }) as RushChallenge;
 }
 
 function getRushChallengePlan(
   elapsedSeconds: number,
   challengeIndex: number,
-): { type: PlayableChallengeType; difficultyRound: number } {
+): { type: RushChallengeType; difficultyRound: number } {
   if (elapsedSeconds < 15) {
     return {
       type: challengeIndex % 3 === 2 ? "build" : "match",
@@ -251,7 +254,7 @@ function getRushChallengePlan(
     };
   }
 
-  const lateTypes: PlayableChallengeType[] = [
+  const lateTypes: RushChallengeType[] = [
     "exact",
     "exact",
     "match",

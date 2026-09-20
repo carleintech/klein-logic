@@ -7,7 +7,6 @@ import {
   validateChallenge,
   type ChallengeAnswer,
   type DieValue,
-  type SumRollChallenge,
 } from "@/game/sumroll/engine";
 import {
   createRushSession,
@@ -19,6 +18,7 @@ import {
   submitRushAnswer,
   tickRushSession,
   type RushSession,
+  type RushChallenge,
 } from "@/game/sumroll/modes/rush";
 
 const DIE_SYMBOLS: Record<DieValue, string> = {
@@ -268,7 +268,7 @@ function RushChallengeBoard({
   onToggleDie,
   onLock,
 }: {
-  challenge: SumRollChallenge;
+  challenge: RushChallenge;
   selectedDice: string[];
   deselections: number;
   onMatchAnswer: (setId: string) => void;

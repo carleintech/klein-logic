@@ -11,6 +11,10 @@ import {
   generateMatchChallenge,
   sumDice,
 } from "./challenges/match";
+import {
+  evaluateMemoryAnswer,
+  generateMemoryChallenge,
+} from "./challenges/memory";
 import type {
   ChallengeAnswer,
   ChallengeValidation,
@@ -22,6 +26,7 @@ import type {
 export * from "./challenges/build";
 export * from "./challenges/exact";
 export * from "./challenges/match";
+export * from "./challenges/memory";
 export * from "./difficulty";
 export * from "./types";
 
@@ -35,6 +40,10 @@ export function generateChallenge(
 
   if (type === "build") {
     return generateBuildChallenge(options);
+  }
+
+  if (type === "memory") {
+    return generateMemoryChallenge(options);
   }
 
   return generateExactChallenge(options);
@@ -58,6 +67,10 @@ export function validateChallenge(
       answer.selectedIds,
       answer.deselections,
     );
+  }
+
+  if (challenge.type === "memory" && answer.type === "memory") {
+    return evaluateMemoryAnswer(challenge, answer.total);
   }
 
   return {

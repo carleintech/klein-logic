@@ -10,6 +10,7 @@ import {
   type DieValue,
   type ExactChallenge,
   type MatchChallenge,
+  type MemoryChallenge,
   type PlayableChallengeType,
   type SumRollChallenge,
 } from "@/game/sumroll/engine";
@@ -19,6 +20,7 @@ const TOTAL_ROUNDS = 10;
 const BASE_SCORE = 200;
 const BUILD_BONUS = 50;
 const EXACT_BONUS = 75;
+const MEMORY_BONUS = 75;
 const SPEED_BONUS = 100;
 
 const DIE_SYMBOLS: Record<DieValue, string> = {
@@ -40,6 +42,8 @@ type Feedback = {
   text: string;
 } | null;
 
+type MemoryPhase = "ready" | "memorize" | "hidden" | "answer";
+
 const MODE_COPY: Record<
   PlayableChallengeType,
   { level: string; name: string; description: string }
@@ -58,6 +62,11 @@ const MODE_COPY: Record<
     level: "Level 3",
     name: "Exact",
     description: "Reach the target using exactly the required number of dice.",
+  },
+  memory: {
+    level: "Level 4",
+    name: "Memory",
+    description: "Memorize the dice, then recall their total.",
   },
 };
 
@@ -80,6 +89,10 @@ export default function SumRollGame() {
   const [selectedSet, setSelectedSet] = useState<string | null>(null);
   const [selectedDice, setSelectedDice] = useState<string[]>([]);
   const [deselections, setDeselections] = useState(0);
+  const [memoryPhase, setMemoryPhase] = useState<MemoryPhase>("ready");
+  const [selectedMemoryAnswer, setSelectedMemoryAnswer] = useState<number | null>(
+    null,
+  );
   const [feedback, setFeedback] = useState<Feedback>(null);
   const transitionTimer = useRef<number | null>(null);
 
@@ -101,6 +114,8 @@ export default function SumRollGame() {
       setSelectedSet(null);
       setSelectedDice([]);
       setDeselections(0);
+      setMemoryPhase("ready");
+      setSelectedMemoryAnswer(null);
       setFeedback(null);
       setLocked(false);
       return nextRound;
@@ -141,7 +156,34 @@ export default function SumRollGame() {
   );
 
   useEffect(() => {
+    if (challenge.type !== "memory" || gameOver || completed) {
+      return;
+    }
+
+    const memorizeTimer = window.setTimeout(() => {
+      setMemoryPhase("memorize");
+    }, challenge.readyDurationMs);
+    const hiddenTimer = window.setTimeout(() => {
+      setMemoryPhase("hidden");
+    }, challenge.readyDurationMs + challenge.exposureDurationMs);
+    const answerTimer = window.setTimeout(() => {
+      setMemoryPhase("answer");
+      setTimeRemaining(Math.ceil(challenge.responseDurationMs / 1_000));
+    }, challenge.readyDurationMs + challenge.exposureDurationMs + challenge.hiddenDurationMs);
+
+    return () => {
+      window.clearTimeout(memorizeTimer);
+      window.clearTimeout(hiddenTimer);
+      window.clearTimeout(answerTimer);
+    };
+  }, [challenge, completed, gameOver]);
+
+  useEffect(() => {
     if (locked || gameOver || completed) {
+      return;
+    }
+
+    if (challenge.type === "memory" && memoryPhase !== "answer") {
       return;
     }
 
@@ -156,7 +198,7 @@ export default function SumRollGame() {
     }, 1_000);
 
     return () => window.clearTimeout(timer);
-  }, [completed, gameOver, locked, loseLife, timeRemaining]);
+  }, [challenge.type, completed, gameOver, locked, loseLife, memoryPhase, timeRemaining]);
 
   useEffect(() => {
     return () => {
@@ -207,7 +249,13 @@ export default function SumRollGame() {
   }
 
   function handleDiceToggle(dieId: string) {
-    if (locked || gameOver || completed || challenge.type === "match") {
+    if (
+      locked ||
+      gameOver ||
+      completed ||
+      challenge.type === "match" ||
+      challenge.type === "memory"
+    ) {
       return;
     }
 
@@ -237,6 +285,7 @@ export default function SumRollGame() {
       gameOver ||
       completed ||
       challenge.type === "match" ||
+      challenge.type === "memory" ||
       selectedDice.length === 0
     ) {
       return;
@@ -281,6 +330,28 @@ export default function SumRollGame() {
     completeCorrectAnswer(modeBonus + result.bonusPoints, cleanLabel);
   }
 
+  function handleMemoryAnswer(total: number) {
+    if (
+      locked ||
+      gameOver ||
+      completed ||
+      challenge.type !== "memory" ||
+      memoryPhase !== "answer"
+    ) {
+      return;
+    }
+
+    setSelectedMemoryAnswer(total);
+    const result = validateChallenge(challenge, { type: "memory", total });
+
+    if (!result.correct) {
+      loseLife(`${total} was not the total. The answer was ${challenge.target}.`);
+      return;
+    }
+
+    completeCorrectAnswer(MEMORY_BONUS, "Perfect recall!");
+  }
+
   function resetRun(nextMode: PlayableChallengeType, nextSeed: number) {
     if (transitionTimer.current !== null) {
       window.clearTimeout(transitionTimer.current);
@@ -307,6 +378,8 @@ export default function SumRollGame() {
     setSelectedSet(null);
     setSelectedDice([]);
     setDeselections(0);
+    setMemoryPhase("ready");
+    setSelectedMemoryAnswer(null);
     setFeedback(null);
   }
 
@@ -320,11 +393,14 @@ export default function SumRollGame() {
     resetRun(mode, runSeed + 1);
   }
 
-  const timerPercent = (timeRemaining / challenge.seconds) * 100;
+  const memoryWaiting = challenge.type === "memory" && memoryPhase !== "answer";
+  const timerPercent = memoryWaiting
+    ? 100
+    : (timeRemaining / challenge.seconds) * 100;
 
   return (
     <div className="mx-auto w-full max-w-2xl">
-      <div className="mb-5 grid grid-cols-3 gap-2 rounded-2xl border border-white/10 bg-white/[0.025] p-2">
+      <div className="mb-5 grid grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-white/[0.025] p-2 sm:grid-cols-4">
         {(Object.keys(MODE_COPY) as PlayableChallengeType[]).map(
           (challengeType) => {
             const copy = MODE_COPY[challengeType];
@@ -397,7 +473,7 @@ export default function SumRollGame() {
               timeRemaining <= 3 ? "text-red-400" : "text-white",
             ].join(" ")}
           >
-            {timeRemaining}s
+            {memoryWaiting ? "WATCH" : `${timeRemaining}s`}
           </span>
         </div>
 
@@ -414,14 +490,25 @@ export default function SumRollGame() {
 
       {!gameOver && !completed && (
         <>
-          <ChallengeHeader
-            challenge={challenge}
-            combo={combo}
-            selectedDice={selectedDice}
-            deselections={deselections}
-          />
+          {challenge.type !== "memory" && (
+            <ChallengeHeader
+              challenge={challenge}
+              combo={combo}
+              selectedDice={selectedDice}
+              deselections={deselections}
+            />
+          )}
 
-          {challenge.type === "match" ? (
+          {challenge.type === "memory" ? (
+            <MemoryBoard
+              challenge={challenge}
+              phase={memoryPhase}
+              locked={locked}
+              selectedAnswer={selectedMemoryAnswer}
+              combo={combo}
+              onAnswer={handleMemoryAnswer}
+            />
+          ) : challenge.type === "match" ? (
             <MatchBoard
               challenge={challenge}
               locked={locked}
@@ -484,7 +571,7 @@ function ChallengeHeader({
   selectedDice,
   deselections,
 }: {
-  challenge: SumRollChallenge;
+  challenge: Exclude<SumRollChallenge, MemoryChallenge>;
   combo: number;
   selectedDice: string[];
   deselections: number;
@@ -551,6 +638,95 @@ function ChallengeHeader({
 
       {combo >= 2 && (
         <div className="mt-4 ml-2 inline-flex rounded-full border border-orange-400/30 bg-orange-400/10 px-4 py-2 text-sm font-black text-orange-300">
+          COMBO ×{combo}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MemoryBoard({
+  challenge,
+  phase,
+  locked,
+  selectedAnswer,
+  combo,
+  onAnswer,
+}: {
+  challenge: MemoryChallenge;
+  phase: MemoryPhase;
+  locked: boolean;
+  selectedAnswer: number | null;
+  combo: number;
+  onAnswer: (total: number) => void;
+}) {
+  return (
+    <div className="overflow-hidden rounded-3xl border border-violet-400/20 bg-violet-950/20 p-5 text-center sm:p-8">
+      <p className="text-xs font-black uppercase tracking-[0.3em] text-violet-300">
+        {phase === "ready"
+          ? "Get ready"
+          : phase === "memorize"
+            ? "Memorize"
+            : phase === "hidden"
+              ? "Hold it"
+              : "What was the total?"}
+      </p>
+
+      <div className="my-8 flex min-h-24 flex-wrap items-center justify-center gap-3">
+        {phase === "memorize" ? (
+          challenge.dice.map((value, index) => (
+            <div
+              key={`${challenge.id}-${index}`}
+              className="flex h-20 w-20 items-center justify-center rounded-2xl border border-white/15 bg-white/[0.06] shadow-xl shadow-black/20"
+            >
+              <Die value={value} large />
+            </div>
+          ))
+        ) : phase === "answer" ? (
+          <span className="text-5xl font-black tracking-tight text-white sm:text-6xl">
+            ?
+          </span>
+        ) : (
+          Array.from({ length: challenge.dice.length }).map((_, index) => (
+            <div
+              key={`${challenge.id}-hidden-${index}`}
+              className="h-20 w-20 rounded-2xl border border-white/5 bg-white/[0.025]"
+            />
+          ))
+        )}
+      </div>
+
+      {phase === "answer" && (
+        <div className="grid grid-cols-2 gap-3">
+          {challenge.options.map((option) => {
+            const selected = selectedAnswer === option;
+            const correct = option === challenge.target;
+            let stateStyle =
+              "border-white/10 bg-white/[0.04] hover:-translate-y-0.5 hover:border-violet-400/60 hover:bg-violet-400/10";
+
+            if (locked && correct) {
+              stateStyle = "border-emerald-400 bg-emerald-950/50 text-emerald-200";
+            } else if (locked && selected) {
+              stateStyle = "border-red-500 bg-red-950/50 text-red-200";
+            }
+
+            return (
+              <button
+                key={option}
+                type="button"
+                disabled={locked}
+                onClick={() => onAnswer(option)}
+                className={`rounded-2xl border px-5 py-5 text-2xl font-black transition ${stateStyle}`}
+              >
+                {option}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {combo >= 2 && (
+        <div className="mt-5 inline-flex rounded-full border border-orange-400/30 bg-orange-400/10 px-4 py-2 text-sm font-black text-orange-300">
           COMBO ×{combo}
         </div>
       )}
