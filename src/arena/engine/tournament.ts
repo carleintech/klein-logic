@@ -3,6 +3,7 @@ import { generateChallenge } from "../../game/sumroll/engine";
 import type {
   ArenaPlayer,
   ArenaResponse,
+  CreateTournamentOptions,
   TournamentPreset,
   TournamentState,
 } from "../types";
@@ -46,36 +47,71 @@ function assertPresetIsValid(preset: TournamentPreset): void {
   }
 }
 
-function createPlayers(count: number, seed: string): ArenaPlayer[] {
-  return Array.from({ length: count }, (_, index) => {
+function createPlayers(
+  count: number,
+  seed: string,
+  options: CreateTournamentOptions,
+): ArenaPlayer[] {
+  const hasHuman = options.participationMode === "player";
+  const simulatedCount = hasHuman ? count - 1 : count;
+  const players: ArenaPlayer[] = Array.from(
+    { length: simulatedCount },
+    (_, index) => {
     const number = index + 1;
     const id = `player-${number.toString().padStart(2, "0")}`;
 
     return {
       id,
       displayName: `Player ${number.toString().padStart(2, "0")}`,
+      participantType: "simulated",
       status: "active",
       eliminatedRound: null,
       finalPlacement: null,
       tieBreak: hashSeed(`${seed}:tie:${id}`),
+      };
+    },
+  );
+
+  if (hasHuman) {
+    const humanPlayer = options.humanPlayer ?? {
+      id: "human-player",
+      displayName: "YOU",
     };
-  });
+
+    players.push({
+      id: humanPlayer.id,
+      displayName: humanPlayer.displayName,
+      participantType: "human",
+      status: "active",
+      eliminatedRound: null,
+      finalPlacement: null,
+      tieBreak: hashSeed(`${seed}:tie:${humanPlayer.id}`),
+    });
+  }
+
+  return players;
 }
 
 export function createTournament(
   preset: TournamentPreset,
   seed: string,
+  options: CreateTournamentOptions = {},
 ): TournamentState {
   assertPresetIsValid(preset);
   const normalizedSeed = seed.trim() || "ABC123";
+  const participationMode = options.participationMode ?? "simulation";
 
   return {
     tournamentId: `${preset.id}-${hashSeed(normalizedSeed).toString(16)}`,
     seed: normalizedSeed,
+    participationMode,
     preset,
     status: "landing",
     roundIndex: 0,
-    players: createPlayers(preset.playerCount, normalizedSeed),
+    players: createPlayers(preset.playerCount, normalizedSeed, {
+      ...options,
+      participationMode,
+    }),
     responses: [],
     currentChallenge: null,
     roundHistory: [],

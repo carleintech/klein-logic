@@ -14,6 +14,12 @@ export default function ArenaLobby({
     tournament.preset.playerCount,
     ...tournament.preset.rounds.map((round) => round.advancingPlayers),
   ];
+  const humanPlayer = activePlayers.find(
+    (player) => player.participantType === "human",
+  );
+  const simulatedPlayers = activePlayers.filter(
+    (player) => player.participantType === "simulated",
+  );
 
   return (
     <section className="mx-auto w-full max-w-4xl">
@@ -40,13 +46,31 @@ export default function ArenaLobby({
         <div className="h-full w-full bg-cyan-300" />
       </div>
 
+      {humanPlayer && (
+        <div className="mt-6 grid grid-cols-[1fr_auto_1fr] items-center gap-4 border border-cyan-300/20 bg-cyan-300/[0.04] px-5 py-4 text-center font-mono text-xs uppercase tracking-[0.18em]">
+          <span className="text-right text-neutral-400">
+            {simulatedPlayers.length} simulated players
+          </span>
+          <span className="text-cyan-300">+</span>
+          <span className="text-left font-black text-white">You</span>
+        </div>
+      )}
+
       <div className="mt-6 grid max-h-72 grid-cols-2 gap-px overflow-y-auto border border-white/10 bg-white/10 sm:grid-cols-5">
         {activePlayers.map((player) => (
           <div
             key={player.id}
             className="flex items-center justify-between bg-[#080d13] px-3 py-3 font-mono text-xs"
           >
-            <span className="text-neutral-300">{player.displayName}</span>
+            <span
+              className={
+                player.participantType === "human"
+                  ? "font-black text-cyan-300"
+                  : "text-neutral-300"
+              }
+            >
+              {player.displayName}
+            </span>
             <span className="ml-2 h-1.5 w-1.5 rounded-full bg-emerald-300 shadow-[0_0_8px_rgba(110,231,183,0.8)]" />
           </div>
         ))}

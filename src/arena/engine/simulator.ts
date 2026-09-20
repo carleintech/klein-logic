@@ -25,11 +25,13 @@ function seededValue(value: string): number {
 export function createSimulatedProfiles(
   state: TournamentState,
 ): SimulatedPlayerProfile[] {
-  return state.players.map((player) => ({
+  return state.players
+    .filter((player) => player.participantType === "simulated")
+    .map((player) => ({
     playerId: player.id,
     accuracy: 0.68 + seededValue(`${state.seed}:accuracy:${player.id}`) * 0.29,
     speed: 0.5 + seededValue(`${state.seed}:speed:${player.id}`) * 0.49,
-  }));
+    }));
 }
 
 export function simulateRoundResponses(
@@ -46,7 +48,10 @@ export function simulateRoundResponses(
   );
 
   return state.players
-    .filter((player) => player.status === "active")
+    .filter(
+      (player) =>
+        player.status === "active" && player.participantType === "simulated",
+    )
     .map((player) => {
       const profile = profilesById.get(player.id);
 

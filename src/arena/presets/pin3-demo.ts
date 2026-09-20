@@ -12,6 +12,7 @@ export const PIN3_DEMO_PRESET: TournamentPreset = {
       startingPlayers: 50,
       advancingPlayers: 32,
       difficultyRound: 2,
+      responseWindowMs: 3_000,
     },
     {
       number: 2,
@@ -20,6 +21,7 @@ export const PIN3_DEMO_PRESET: TournamentPreset = {
       startingPlayers: 32,
       advancingPlayers: 20,
       difficultyRound: 4,
+      responseWindowMs: 3_000,
     },
     {
       number: 3,
@@ -28,6 +30,7 @@ export const PIN3_DEMO_PRESET: TournamentPreset = {
       startingPlayers: 20,
       advancingPlayers: 12,
       difficultyRound: 5,
+      responseWindowMs: 3_000,
     },
     {
       number: 4,
@@ -36,6 +39,7 @@ export const PIN3_DEMO_PRESET: TournamentPreset = {
       startingPlayers: 12,
       advancingPlayers: 8,
       difficultyRound: 6,
+      responseWindowMs: 3_000,
     },
     {
       number: 5,
@@ -44,6 +48,7 @@ export const PIN3_DEMO_PRESET: TournamentPreset = {
       startingPlayers: 8,
       advancingPlayers: 4,
       difficultyRound: 8,
+      responseWindowMs: 3_000,
     },
     {
       number: 6,
@@ -52,6 +57,7 @@ export const PIN3_DEMO_PRESET: TournamentPreset = {
       startingPlayers: 4,
       advancingPlayers: 2,
       difficultyRound: 9,
+      responseWindowMs: 3_000,
     },
     {
       number: 7,
@@ -60,6 +66,7 @@ export const PIN3_DEMO_PRESET: TournamentPreset = {
       startingPlayers: 2,
       advancingPlayers: 1,
       difficultyRound: 10,
+      responseWindowMs: 3_000,
     },
   ],
 };

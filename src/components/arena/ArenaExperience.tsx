@@ -16,11 +16,17 @@ import {
   startTournament,
 } from "@/arena/engine/tournament";
 import type {
+  ArenaParticipationMode,
+  ArenaResponse,
   SimulatedPlayerProfile,
   TournamentState,
 } from "@/arena/types";
 
 import ArenaLobby from "./ArenaLobby";
+import {
+  ArenaHumanChallenge,
+  ArenaHumanRoundResults,
+} from "./ArenaPlayerRound";
 import ArenaResults from "./ArenaResults";
 import ArenaRound from "./ArenaRound";
 
@@ -36,9 +42,15 @@ export default function ArenaExperience() {
   );
   const [countdown, setCountdown] = useState(3);
   const [alternateRun, setAlternateRun] = useState(1);
+  const [watchingAfterElimination, setWatchingAfterElimination] =
+    useState(false);
+  const humanIsActive = tournament.players.some(
+    (player) =>
+      player.participantType === "human" && player.status === "active",
+  );
 
   useEffect(() => {
-    if (tournament?.status !== "countdown") {
+    if (tournament.status !== "countdown") {
       return;
     }
 
@@ -57,10 +69,13 @@ export default function ArenaExperience() {
     }, 650);
 
     return () => window.clearTimeout(timer);
-  }, [countdown, tournament?.status]);
+  }, [countdown, tournament.status]);
 
   useEffect(() => {
-    if (tournament?.status !== "round") {
+    if (
+      tournament.status !== "round" ||
+      (tournament.participationMode === "player" && humanIsActive)
+    ) {
       return;
     }
 
@@ -78,14 +93,21 @@ export default function ArenaExperience() {
     }, 1_250);
 
     return () => window.clearTimeout(timer);
-  }, [profiles, tournament?.status]);
+  }, [humanIsActive, profiles, tournament.participationMode, tournament.status]);
 
-  function enterArena(seed: string) {
-    const landingTournament = createTournament(PIN3_DEMO_PRESET, seed);
+  function enterArena(seed: string, mode: ArenaParticipationMode) {
+    const landingTournament = createTournament(PIN3_DEMO_PRESET, seed, {
+      participationMode: mode,
+      humanPlayer:
+        mode === "player"
+          ? { id: "human-player", displayName: "YOU" }
+          : undefined,
+    });
     const nextTournament = enterTournamentLobby(landingTournament);
     setTournament(nextTournament);
     setProfiles(createSimulatedProfiles(nextTournament));
     setCountdown(3);
+    setWatchingAfterElimination(false);
   }
 
   function handleStart() {
@@ -102,7 +124,25 @@ export default function ArenaExperience() {
     const nextSeed = `VECTOR-${alternateRun.toString().padStart(3, "0")}`;
     setAlternateRun((current) => current + 1);
     setSeedInput(nextSeed);
-    enterArena(nextSeed);
+    enterArena(nextSeed, tournament.participationMode);
+  }
+
+  function handleHumanResponse(response: ArenaResponse) {
+    setTournament((current) => {
+      if (current.status !== "round") {
+        return current;
+      }
+
+      return resolveTournamentRound(current, [
+        ...simulateRoundResponses(current, profiles),
+        response,
+      ]);
+    });
+  }
+
+  function handleWatchTournament() {
+    setWatchingAfterElimination(true);
+    handleContinue();
   }
 
   if (tournament.status === "landing") {
@@ -138,13 +178,22 @@ export default function ArenaExperience() {
               maxLength={24}
             />
           </label>
-          <button
-            type="button"
-            onClick={() => enterArena(seedInput)}
-            className="mt-5 w-full border border-cyan-300 bg-cyan-300 px-6 py-4 font-mono text-sm font-black uppercase tracking-[0.22em] text-black transition hover:bg-white"
-          >
-            Enter Arena
-          </button>
+          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => enterArena(seedInput, "simulation")}
+              className="border border-white/20 px-5 py-4 font-mono text-xs font-black uppercase tracking-[0.18em] text-white transition hover:border-white hover:bg-white hover:text-black"
+            >
+              Watch Demo
+            </button>
+            <button
+              type="button"
+              onClick={() => enterArena(seedInput, "player")}
+              className="border border-cyan-300 bg-cyan-300 px-5 py-4 font-mono text-xs font-black uppercase tracking-[0.18em] text-black transition hover:bg-white"
+            >
+              Play Tournament
+            </button>
+          </div>
         </div>
 
         <p className="mt-7 font-mono text-[10px] uppercase tracking-[0.24em] text-neutral-600">
@@ -162,8 +211,39 @@ export default function ArenaExperience() {
     return (
       <ArenaResults
         tournament={tournament}
-        onReplay={() => enterArena(tournament.seed)}
+        onReplay={() =>
+          enterArena(tournament.seed, tournament.participationMode)
+        }
         onDifferentSeed={handleDifferentSeed}
+      />
+    );
+  }
+
+  if (
+    tournament.participationMode === "player" &&
+    tournament.status === "round" &&
+    humanIsActive
+  ) {
+    return (
+      <ArenaHumanChallenge
+        key={tournament.currentChallenge?.id}
+        tournament={tournament}
+        onResponse={handleHumanResponse}
+      />
+    );
+  }
+
+  if (
+    tournament.participationMode === "player" &&
+    tournament.status === "round-results" &&
+    !watchingAfterElimination
+  ) {
+    return (
+      <ArenaHumanRoundResults
+        tournament={tournament}
+        onContinue={handleContinue}
+        onWatch={handleWatchTournament}
+        onTryAgain={() => enterArena(tournament.seed, "player")}
       />
     );
   }
