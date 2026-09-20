@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import SumRollGame from "@/components/sumroll/SumRollGame";
+import SumRollExperience from "@/components/sumroll/SumRollExperience";
 
 export const metadata: Metadata = {
   title: "SumRoll",
@@ -28,11 +28,11 @@ export default function SumRollPage() {
             SumRoll
           </h1>
           <p className="mt-3 text-neutral-400">
-            Match sets, build totals, or solve exact dice constraints.
+            Master each challenge, then take all three into a 60-second Rush.
           </p>
         </header>
 
-        <SumRollGame />
+        <SumRollExperience />
       </div>
     </main>
   );

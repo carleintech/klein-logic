@@ -1,11 +1,15 @@
 export type DieValue = 1 | 2 | 3 | 4 | 5 | 6;
 
-export type ChallengeType = "match" | "build" | "exact" | "rush" | "memory";
+export type ChallengeType = "match" | "build" | "exact";
 
-export type PlayableChallengeType = Extract<
-  ChallengeType,
-  "match" | "build" | "exact"
->;
+export type PlayableChallengeType = ChallengeType;
+
+export type SumRollModeType =
+  | "classic"
+  | "rush"
+  | "memory"
+  | "daily"
+  | "arena";
 
 export type DiceSet = {
   id: string;
