@@ -65,6 +65,22 @@ export type CreateResponseRecord = {
   disposition: ResponseDisposition;
 };
 
+export type CreateIdentityResponseRecord = {
+  tournamentId: string;
+  roundId: string;
+  subjectId: string;
+  answerPayload: ChallengeAnswer;
+  correct: boolean;
+};
+
+export type JoinIdentityParticipantRecord = {
+  tournamentId: string;
+  subjectId: string;
+  enginePlayerId: string;
+  displayName: string;
+  tieBreakValue: number;
+};
+
 export type PersistRoundResultRecord = {
   tournamentId: string;
   roundId: string;
@@ -138,4 +154,9 @@ export type StoredTournamentAggregate = {
   rounds: StoredRound[];
   responses: StoredResponse[];
   events: StoredTournamentEvent[];
+};
+
+export type StoredResponseContext = {
+  participant: StoredParticipant;
+  round: StoredRound;
 };

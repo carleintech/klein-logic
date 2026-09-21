@@ -5,9 +5,11 @@ import type { Pool, PoolClient } from "pg";
 import { withTransaction } from "../db/transaction";
 import type {
   CreateParticipantRecord,
+  CreateIdentityResponseRecord,
   CreateResponseRecord,
   CreateRoundRecord,
   CreateTournamentRecord,
+  JoinIdentityParticipantRecord,
   PersistRoundResultRecord,
   StoredParticipant,
   StoredResponse,
@@ -16,6 +18,7 @@ import type {
   StoredTournamentAggregate,
   StoredTournamentEvent,
 } from "../arena/persistence-types";
+import { ArenaAuthorizationError } from "../arena/authorization";
 
 type TournamentRow = {
   id: string;
@@ -299,6 +302,67 @@ export class ArenaRepository {
     });
   }
 
+  async addParticipantForIdentity(
+    input: JoinIdentityParticipantRecord,
+  ): Promise<{ participant: StoredParticipant; stateVersion: number }> {
+    return withTransaction(this.pool, async (client) => {
+      await lockTournament(client, input.tournamentId);
+      const tournament = await client.query<{
+        status: StoredTournament["status"];
+        capacity: number;
+      }>(
+        "select status, capacity from arena.tournaments where id = $1",
+        [input.tournamentId],
+      );
+
+      if (tournament.rows[0].status !== "lobby") {
+        throw new ArenaAuthorizationError(
+          "tournament-not-joinable",
+          "Participants may only join a tournament in its lobby.",
+        );
+      }
+
+      const participantCount = await client.query<{ count: string }>(
+        `select count(*) from arena.tournament_participants
+         where tournament_id = $1`,
+        [input.tournamentId],
+      );
+
+      if (Number(participantCount.rows[0].count) >= tournament.rows[0].capacity) {
+        throw new ArenaAuthorizationError(
+          "tournament-full",
+          "The tournament has reached its participant capacity.",
+        );
+      }
+
+      const result = await client.query<ParticipantRow>(
+        `insert into arena.tournament_participants (
+           tournament_id, engine_player_id, auth_user_id, display_name, role,
+           participant_type, status, eliminated_round, final_placement,
+           tie_break_value
+         ) values ($1, $2, $3, $4, 'player', 'human', 'active', null, null, $5)
+         returning *`,
+        [
+          input.tournamentId,
+          input.enginePlayerId,
+          input.subjectId,
+          input.displayName,
+          input.tieBreakValue,
+        ],
+      );
+      const stateVersion = await incrementStateVersion(client, input.tournamentId);
+
+      await client.query(
+        `insert into arena.tournament_events (
+           tournament_id, participant_id, event_type, payload
+         ) values ($1, $2, 'identity-participant-joined', '{}'::jsonb)`,
+        [input.tournamentId, result.rows[0].id],
+      );
+
+      return { participant: mapParticipant(result.rows[0]), stateVersion };
+    });
+  }
+
   async createRound(
     input: CreateRoundRecord,
   ): Promise<{ round: StoredRound; stateVersion: number }> {
@@ -384,6 +448,135 @@ export class ArenaRepository {
 
       return { response: mapResponse(result.rows[0]), stateVersion };
     });
+  }
+
+  async insertResponseForIdentity(
+    input: CreateIdentityResponseRecord,
+  ): Promise<{ response: StoredResponse; stateVersion: number }> {
+    return withTransaction(this.pool, async (client) => {
+      await lockTournament(client, input.tournamentId);
+      const participantResult = await client.query<ParticipantRow>(
+        `select * from arena.tournament_participants
+         where tournament_id = $1 and auth_user_id = $2
+         for update`,
+        [input.tournamentId, input.subjectId],
+      );
+
+      if (participantResult.rowCount !== 1) {
+        throw new ArenaAuthorizationError(
+          "participant-required",
+          "The authenticated identity does not own a tournament participant.",
+        );
+      }
+
+      const participant = participantResult.rows[0];
+
+      if (participant.status !== "active") {
+        throw new ArenaAuthorizationError(
+          "participant-inactive",
+          "Only an active participant may submit an Arena response.",
+        );
+      }
+
+      const roundResult = await client.query<RoundRow>(
+        `select * from arena.tournament_rounds
+         where id = $1 and tournament_id = $2
+         for update`,
+        [input.roundId, input.tournamentId],
+      );
+
+      if (roundResult.rowCount !== 1 || roundResult.rows[0].status !== "open") {
+        throw new ArenaAuthorizationError(
+          "round-not-open",
+          "The requested tournament round is not open.",
+        );
+      }
+
+      const result = await client.query<ResponseRow>(
+        `insert into arena.round_responses (
+           tournament_id, round_id, participant_id, answer_payload,
+           received_at, response_ms, correct, disposition
+         )
+         select
+           $1, $2, $3, $4::jsonb, timing.received_at,
+           case
+             when timing.opens_at is null then null
+             else greatest(
+               0,
+               floor(extract(epoch from (timing.received_at - timing.opens_at)) * 1000)
+             )::integer
+           end,
+           $5,
+           case
+             when timing.deadline_at is not null
+               and timing.received_at > timing.deadline_at then 'late'
+             else 'accepted'
+           end
+         from (
+           select opens_at, deadline_at, clock_timestamp() as received_at
+           from arena.tournament_rounds
+           where id = $2 and tournament_id = $1
+         ) as timing
+         returning *`,
+        [
+          input.tournamentId,
+          input.roundId,
+          participant.id,
+          JSON.stringify(input.answerPayload),
+          input.correct,
+        ],
+      );
+      const stateVersion = await incrementStateVersion(client, input.tournamentId);
+
+      await client.query(
+        `insert into arena.tournament_events (
+           tournament_id, round_id, participant_id, event_type, payload
+         ) values ($1, $2, $3, 'identity-response-recorded', $4::jsonb)`,
+        [
+          input.tournamentId,
+          input.roundId,
+          participant.id,
+          JSON.stringify({ disposition: result.rows[0].disposition }),
+        ],
+      );
+
+      return { response: mapResponse(result.rows[0]), stateVersion };
+    });
+  }
+
+  async getTournament(tournamentId: string): Promise<StoredTournament | null> {
+    const result = await this.pool.query<TournamentRow>(
+      "select * from arena.tournaments where id = $1",
+      [tournamentId],
+    );
+
+    return result.rowCount === 1 ? mapTournament(result.rows[0]) : null;
+  }
+
+  async getParticipantBySubject(
+    tournamentId: string,
+    subjectId: string,
+  ): Promise<StoredParticipant | null> {
+    const result = await this.pool.query<ParticipantRow>(
+      `select * from arena.tournament_participants
+       where tournament_id = $1 and auth_user_id = $2`,
+      [tournamentId, subjectId],
+    );
+
+    return result.rowCount === 1 ? mapParticipant(result.rows[0]) : null;
+  }
+
+  async getRound(
+    tournamentId: string,
+    roundId: string,
+  ): Promise<StoredRound | null> {
+    const result = await this.pool.query<RoundRow>(
+      `select * from arena.tournament_rounds
+       where tournament_id = $1 and id = $2`,
+      [tournamentId, roundId],
+    );
+
+    return result.rowCount === 1 ? mapRound(result.rows[0]) : null;
   }
 
   async persistRoundResult(input: PersistRoundResultRecord): Promise<number> {

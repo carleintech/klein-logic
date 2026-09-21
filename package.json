@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "db:migrate": "node --env-file=.env.local --conditions=react-server --import tsx scripts/db/migrate.ts",
-    "db:test": "node --env-file=.env.local --conditions=react-server --import tsx scripts/db/test-arena-persistence.ts"
+    "db:test": "node --env-file=.env.local --conditions=react-server --import tsx scripts/db/test-arena-persistence.ts",
+    "db:test:identity": "node --env-file=.env.local --conditions=react-server --import tsx scripts/db/test-arena-identity.ts"
   },
   "dependencies": {
     "next": "16.3.5",
