@@ -23,10 +23,8 @@ import type {
 } from "@/arena/types";
 
 import ArenaLobby from "./ArenaLobby";
-import {
-  ArenaHumanChallenge,
-  ArenaHumanRoundResults,
-} from "./ArenaPlayerRound";
+import ArenaLocalPlayerRound from "./ArenaLocalPlayerRound";
+import { ArenaHumanRoundResults } from "./ArenaPlayerRound";
 import ArenaResults from "./ArenaResults";
 import ArenaRound from "./ArenaRound";
 
@@ -225,7 +223,7 @@ export default function ArenaExperience() {
     humanIsActive
   ) {
     return (
-      <ArenaHumanChallenge
+      <ArenaLocalPlayerRound
         key={tournament.currentChallenge?.id}
         tournament={tournament}
         onResponse={handleHumanResponse}

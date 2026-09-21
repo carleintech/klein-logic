@@ -2,13 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import type { ArenaResponse, TournamentState } from "@/arena/types";
-import {
-  canSelectExactDie,
-  validateChallenge,
-  type DieValue,
-  type MemoryChallenge,
-} from "@/game/sumroll/engine";
+import type {
+  PublicArenaChallenge,
+  PublicExactArenaChallenge,
+  PublicMemoryArenaChallenge,
+} from "@/arena/challenges/types";
+import type { TournamentState } from "@/arena/types";
+import type { ChallengeAnswer, DieValue } from "@/game/sumroll/types";
 
 const DIE_SYMBOLS: Record<DieValue, string> = {
   1: "⚀",
@@ -21,29 +21,33 @@ const DIE_SYMBOLS: Record<DieValue, string> = {
 
 type MemoryPhase = "ready" | "memorize" | "hidden" | "answer";
 
+export type ArenaPublicSubmission = {
+  answer: ChallengeAnswer | null;
+  responseMs: number | null;
+};
+
 export function ArenaHumanChallenge({
-  tournament,
-  onResponse,
+  challenge,
+  roundLabel,
+  responseWindowMs,
+  onSubmit,
 }: {
-  tournament: TournamentState;
-  onResponse: (response: ArenaResponse) => void;
+  challenge: PublicArenaChallenge;
+  roundLabel: string;
+  responseWindowMs: number;
+  onSubmit: (submission: ArenaPublicSubmission) => void;
 }) {
-  const challenge = tournament.currentChallenge;
-  const round = tournament.preset.rounds[tournament.roundIndex];
-  const human = tournament.players.find(
-    (player) => player.participantType === "human" && player.status === "active",
-  );
   const [selectedDice, setSelectedDice] = useState<string[]>([]);
   const [deselections, setDeselections] = useState(0);
   const [memoryPhase, setMemoryPhase] = useState<MemoryPhase>("ready");
-  const [timeRemainingMs, setTimeRemainingMs] = useState(round.responseWindowMs);
+  const [timeRemainingMs, setTimeRemainingMs] = useState(responseWindowMs);
   const startedAt = useRef<number | null>(null);
   const submitted = useRef(false);
   const timeoutTimer = useRef<number | null>(null);
   const clockTimer = useRef<number | null>(null);
 
-  function finish(correct: boolean, responseMs: number | null) {
-    if (submitted.current || !human) {
+  function finish(submission: ArenaPublicSubmission) {
+    if (submitted.current) {
       return;
     }
 
@@ -57,32 +61,27 @@ export function ArenaHumanChallenge({
       window.clearInterval(clockTimer.current);
     }
 
-    onResponse({
-      playerId: human.id,
-      roundNumber: round.number,
-      correct,
-      responseMs,
-    });
+    onSubmit(submission);
   }
 
   function makeActionable() {
     const start = performance.now();
     startedAt.current = start;
     timeoutTimer.current = window.setTimeout(
-      () => finish(false, null),
-      round.responseWindowMs,
+      () => finish({ answer: null, responseMs: null }),
+      responseWindowMs,
     );
     clockTimer.current = window.setInterval(() => {
       const remaining = Math.max(
         0,
-        round.responseWindowMs - (performance.now() - start),
+        responseWindowMs - (performance.now() - start),
       );
       setTimeRemainingMs(remaining);
     }, 50);
   }
 
   useEffect(() => {
-    if (!challenge || challenge.type === "memory") {
+    if (challenge.type === "memory") {
       return;
     }
 
@@ -101,7 +100,7 @@ export function ArenaHumanChallenge({
   }, []);
 
   useEffect(() => {
-    if (!challenge || challenge.type !== "memory") {
+    if (challenge.type !== "memory") {
       return;
     }
 
@@ -133,29 +132,20 @@ export function ArenaHumanChallenge({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (!challenge || !human) {
-    return null;
-  }
-
   const activeChallenge = challenge;
 
   function handleAnswer(
-    answer:
-      | { type: "match"; setId: string }
-      | { type: "build"; selectedIds: string[] }
-      | { type: "exact"; selectedIds: string[]; deselections: number }
-      | { type: "memory"; total: number },
+    answer: ChallengeAnswer,
     respondedAt: number,
   ) {
     if (startedAt.current === null) {
       return;
     }
 
-    const validation = validateChallenge(activeChallenge, answer);
-    finish(
-      validation.correct,
-      Math.max(0, Math.round(respondedAt - startedAt.current)),
-    );
+    finish({
+      answer,
+      responseMs: Math.max(0, Math.round(respondedAt - startedAt.current)),
+    });
   }
 
   function toggleDie(dieId: string) {
@@ -176,7 +166,7 @@ export function ArenaHumanChallenge({
 
     if (
       activeChallenge.type === "exact" &&
-      !canSelectExactDie(activeChallenge, selectedDice, dieId)
+      !canSelectPublicExactDie(activeChallenge, selectedDice, dieId)
     ) {
       return;
     }
@@ -192,7 +182,7 @@ export function ArenaHumanChallenge({
   return (
     <section className="mx-auto w-full max-w-4xl border border-white/10 bg-[#080d13]">
       <div className="flex items-center justify-between border-b border-white/10 px-5 py-4 font-mono text-[10px] uppercase tracking-[0.2em]">
-        <span className="text-cyan-300">{round.label} · You are playing</span>
+        <span className="text-cyan-300">{roundLabel} · You are playing</span>
         <span className={timeRemainingMs <= 1_000 ? "text-red-300" : "text-white"}>
           {timerLabel}
         </span>
@@ -253,7 +243,7 @@ export function ArenaHumanChallenge({
                 const unavailable =
                   challenge.type === "exact" &&
                   !selected &&
-                  !canSelectExactDie(challenge, selectedDice, die.id);
+                  !canSelectPublicExactDie(challenge, selectedDice, die.id);
 
                 return (
                   <button
@@ -398,7 +388,7 @@ function MemoryArenaChallenge({
   phase,
   onAnswer,
 }: {
-  challenge: MemoryChallenge;
+  challenge: PublicMemoryArenaChallenge;
   phase: MemoryPhase;
   onAnswer: (total: number) => void;
 }) {
@@ -443,6 +433,35 @@ function MemoryArenaChallenge({
       )}
     </div>
   );
+}
+
+function canSelectPublicExactDie(
+  challenge: PublicExactArenaChallenge,
+  selectedIds: string[],
+  dieId: string,
+): boolean {
+  if (selectedIds.includes(dieId)) {
+    return true;
+  }
+
+  if (selectedIds.length >= challenge.exactCount) {
+    return false;
+  }
+
+  const die = challenge.dice.find((candidate) => candidate.id === dieId);
+
+  if (!die) {
+    return false;
+  }
+
+  const selectedIdSet = new Set(selectedIds);
+  const currentTotal = challenge.dice.reduce(
+    (sum, candidate) =>
+      sum + (selectedIdSet.has(candidate.id) ? candidate.value : 0),
+    0,
+  );
+
+  return currentTotal + die.value <= challenge.target;
 }
 
 function Die({ value, large = false }: { value: DieValue; large?: boolean }) {
