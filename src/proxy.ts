@@ -7,5 +7,9 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/arena/identity/:path*", "/api/dev/arena-identity/:path*"],
+  matcher: [
+    "/arena/:path*",
+    "/api/arena/:path*",
+    "/api/dev/arena-identity/:path*",
+  ],
 };
