@@ -12,7 +12,9 @@
     "db:test:identity": "node --env-file=.env.local --conditions=react-server --import tsx scripts/db/test-arena-identity.ts",
     "db:test:lobby": "node --env-file=.env.local --conditions=react-server --import tsx scripts/db/test-arena-lobby.ts",
     "auth:test": "node --env-file=.env.local --conditions=react-server --import tsx scripts/auth/test-supabase-identity.ts",
-    "ui:test:lobby": "node --conditions=react-server --import tsx scripts/ui/test-arena-lobby-experience.ts"
+    "auth:test:realtime": "node --env-file=.env.local --import tsx scripts/auth/test-supabase-realtime.ts",
+    "ui:test:lobby": "node --conditions=react-server --import tsx scripts/ui/test-arena-lobby-experience.ts",
+    "ui:test:realtime": "node --conditions=react-server --import tsx scripts/ui/test-arena-lobby-realtime.ts"
   },
   "dependencies": {
     "@supabase/ssr": "0.12.7",

@@ -84,10 +84,11 @@ async function main(): Promise<void> {
   assert(lobbyRoom.includes('action === "start"'));
   assert(lobbyRoom.includes("cancelArenaLobbyAction(joinCode)"));
   assert(lobbyRoom.includes('runHostAction("cancel")'));
-  assert(lobbyRoom.includes("POLLING_INTERVAL_MS = 5_000"));
+  assert(lobbyRoom.includes("subscribeToLobbyRealtime"));
   assert(lobbyRoom.includes('document.visibilityState === "hidden"'));
-  assert(lobbyRoom.includes("window.clearInterval(timer)"));
-  assert(lobbyRoom.includes("controller.abort()"));
+  assert(lobbyRoom.includes("subscription?.unsubscribe()"));
+  assert(lobbyRoom.includes("refreshController.current?.abort()"));
+  assert.equal(lobbyRoom.includes("setInterval"), false);
   assert(lobbyRoom.includes("<fieldset"));
   assert(lobbyRoom.includes("aria-expanded={confirmCancel}"));
   assert(lobbyRoom.includes("navigator.clipboard.writeText"));
@@ -130,7 +131,7 @@ async function main(): Promise<void> {
         playerControlsExcludeHostActions: true,
         reconnectIndicatorSupported: true,
         safeLobbyProjectionOnly: true,
-        pollingIsConservativeAndCleanedUp: true,
+        realtimeReconciliationIsCleanedUp: true,
         copyCodeBehaviorPresent: true,
         accessibleFormAndConfirmationPresent: true,
         responsiveStructurePresent: true,

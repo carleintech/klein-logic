@@ -28,6 +28,7 @@ export type PublicOwnLobbyParticipant = PublicLobbyParticipant &
 
 export type PublicLobbyView = Readonly<{
   joinCode: string;
+  stateVersion: number;
   presetId: string;
   presetName: string;
   status: TournamentStatus;

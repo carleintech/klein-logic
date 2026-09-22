@@ -110,6 +110,7 @@ function serializePublicLobby(
 
   return {
     joinCode,
+    stateVersion: aggregate.tournament.stateVersion,
     presetId: aggregate.tournament.presetId,
     presetName: aggregate.tournament.presetSnapshot.name,
     status: aggregate.tournament.status,

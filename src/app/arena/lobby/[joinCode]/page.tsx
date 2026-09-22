@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import ArenaShell from "../../../../components/arena/ArenaShell";
 import MultiplayerLobby from "../../../../components/arena/MultiplayerLobby";
+import { runLobbyOperation } from "../../../../server/arena/lobby-boundary";
 
 export const dynamic = "force-dynamic";
 
@@ -16,10 +17,17 @@ export default async function ArenaLobbyPage({
   params: Promise<{ joinCode: string }>;
 }) {
   const { joinCode } = await params;
+  const normalizedJoinCode = joinCode.trim().toUpperCase();
+  const initialLobby = await runLobbyOperation((service, identity) =>
+    service.getLobby(identity, normalizedJoinCode),
+  );
 
   return (
     <ArenaShell context="PIN³ // Waiting Room">
-      <MultiplayerLobby joinCode={joinCode} />
+      <MultiplayerLobby
+        joinCode={normalizedJoinCode}
+        initialLobby={initialLobby.ok ? initialLobby.data : null}
+      />
     </ArenaShell>
   );
 }

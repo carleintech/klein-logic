@@ -12,6 +12,7 @@ import {
   runLobbyOperation,
   safeLobbyErrorMessage,
 } from "../../server/arena/lobby-boundary";
+import { notifyCommittedLobbyMutation } from "../../server/arena/lobby-realtime-boundary";
 
 function invalidInput<T>(
   code: "invalid-display-name" | "invalid-join-code",
@@ -25,9 +26,11 @@ function invalidInput<T>(
 export async function createArenaLobbyAction(): Promise<
   LobbyActionResult<PublicLobbyView>
 > {
-  return runLobbyOperation((service, identity) =>
+  const result = await runLobbyOperation((service, identity) =>
     service.createLobby(identity),
   );
+
+  return notifyCommittedLobbyMutation(result, (lobby) => lobby);
 }
 
 export async function joinArenaLobbyAction(
@@ -41,12 +44,14 @@ export async function joinArenaLobbyAction(
     return invalidInput("invalid-display-name");
   }
 
-  return runLobbyOperation((service, identity) =>
+  const result = await runLobbyOperation((service, identity) =>
     service.joinLobby(identity, {
       joinCode: input.joinCode,
       displayName: input.displayName,
     }),
   );
+
+  return notifyCommittedLobbyMutation(result, ({ lobby }) => lobby);
 }
 
 export async function startArenaLobbyAction(
@@ -56,9 +61,11 @@ export async function startArenaLobbyAction(
     return invalidInput("invalid-join-code");
   }
 
-  return runLobbyOperation((service, identity) =>
+  const result = await runLobbyOperation((service, identity) =>
     service.startLobby(identity, joinCode),
   );
+
+  return notifyCommittedLobbyMutation(result, (lobby) => lobby);
 }
 
 export async function cancelArenaLobbyAction(
@@ -68,7 +75,9 @@ export async function cancelArenaLobbyAction(
     return invalidInput("invalid-join-code");
   }
 
-  return runLobbyOperation((service, identity) =>
+  const result = await runLobbyOperation((service, identity) =>
     service.cancelLobby(identity, joinCode),
   );
+
+  return notifyCommittedLobbyMutation(result, (lobby) => lobby);
 }

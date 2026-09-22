@@ -13,11 +13,15 @@ import {
   lobbyStatusLabel,
   type LobbyActionResult,
 } from "../../arena/lobby-ui";
+import {
+  shouldApplyLobbyProjection,
+  shouldReconcileLobbyNotification,
+  type LobbyRealtimeConnectionStatus,
+} from "../../arena/lobby-realtime";
 import type { PublicLobbyView } from "../../server/arena/lobby";
 import { ensureAnonymousSession } from "../../lib/supabase/anonymous-session";
 import { createSupabaseBrowserClient } from "../../lib/supabase/client";
-
-const POLLING_INTERVAL_MS = 5_000;
+import { subscribeToLobbyRealtime } from "../../lib/supabase/lobby-realtime";
 
 type LobbyScreenState =
   | { status: "loading" }
@@ -40,8 +44,20 @@ async function readLobby(
   return (await response.json()) as LobbyActionResult<PublicLobbyView>;
 }
 
-export default function MultiplayerLobby({ joinCode }: { joinCode: string }) {
-  const [screen, setScreen] = useState<LobbyScreenState>({ status: "loading" });
+export default function MultiplayerLobby({
+  joinCode,
+  initialLobby,
+}: {
+  joinCode: string;
+  initialLobby: PublicLobbyView | null;
+}) {
+  const [screen, setScreen] = useState<LobbyScreenState>(
+    initialLobby
+      ? { status: "ready", lobby: initialLobby }
+      : { status: "loading" },
+  );
+  const [connectionStatus, setConnectionStatus] =
+    useState<LobbyRealtimeConnectionStatus>("connecting");
   const [actionPending, setActionPending] = useState<
     "start" | "cancel" | null
   >(null);
@@ -50,19 +66,25 @@ export default function MultiplayerLobby({ joinCode }: { joinCode: string }) {
   const [copyMessage, setCopyMessage] = useState<string | null>(null);
   const actionInFlight = useRef(false);
   const refreshInFlight = useRef(false);
-  const sessionReady = useRef(false);
-  const currentStatus = useRef<PublicLobbyView["status"] | null>(null);
+  const refreshController = useRef<AbortController | null>(null);
+  const hasLobbyProjection = useRef(initialLobby !== null);
+  const latestStateVersion = useRef(initialLobby?.stateVersion ?? 0);
+  const pendingStateVersion = useRef(0);
 
   useEffect(() => {
     let active = true;
-    const controller = new AbortController();
+    let subscription: ReturnType<typeof subscribeToLobbyRealtime> | null = null;
 
-    async function refreshLobby(initial = false) {
+    async function reconcileLobby(initial = false) {
       if (refreshInFlight.current || document.visibilityState === "hidden") {
         return;
       }
 
       refreshInFlight.current = true;
+      pendingStateVersion.current = 0;
+      const controller = new AbortController();
+      refreshController.current?.abort();
+      refreshController.current = controller;
 
       try {
         const result = await readLobby(joinCode, controller.signal);
@@ -71,20 +93,33 @@ export default function MultiplayerLobby({ joinCode }: { joinCode: string }) {
         }
 
         if (!result.ok) {
-          setScreen({
-            status: "error",
-            message: lobbyErrorMessage(result.error.code),
-          });
+          setConnectionStatus("interrupted");
+          if (!hasLobbyProjection.current || result.error.code === "session-error") {
+            setScreen({
+              status: "error",
+              message: lobbyErrorMessage(result.error.code),
+            });
+          }
           return;
         }
 
-        currentStatus.current = result.data.status;
-        setScreen({ status: "ready", lobby: result.data });
+        if (
+          shouldApplyLobbyProjection(
+            result.data.stateVersion,
+            latestStateVersion.current,
+          )
+        ) {
+          latestStateVersion.current = result.data.stateVersion;
+          hasLobbyProjection.current = true;
+          setScreen({ status: "ready", lobby: result.data });
+        }
+        setConnectionStatus("connected");
       } catch (error) {
         if (!active || (error instanceof DOMException && error.name === "AbortError")) {
           return;
         }
 
+        setConnectionStatus("interrupted");
         if (initial) {
           setScreen({
             status: "error",
@@ -93,6 +128,14 @@ export default function MultiplayerLobby({ joinCode }: { joinCode: string }) {
         }
       } finally {
         refreshInFlight.current = false;
+
+        if (
+          active &&
+          pendingStateVersion.current > latestStateVersion.current &&
+          document.visibilityState === "visible"
+        ) {
+          void reconcileLobby();
+        }
       }
     }
 
@@ -100,8 +143,40 @@ export default function MultiplayerLobby({ joinCode }: { joinCode: string }) {
       try {
         const supabase = createSupabaseBrowserClient();
         await ensureAnonymousSession(supabase.auth);
-        sessionReady.current = true;
-        await refreshLobby(true);
+        if (!active) {
+          return;
+        }
+
+        subscription = subscribeToLobbyRealtime({
+          joinCode,
+          onNotification(notification) {
+            if (
+              !shouldReconcileLobbyNotification(
+                notification,
+                joinCode,
+                latestStateVersion.current,
+              )
+            ) {
+              return;
+            }
+
+            pendingStateVersion.current = Math.max(
+              pendingStateVersion.current,
+              notification.stateVersion,
+            );
+            void reconcileLobby();
+          },
+          onStatus(status) {
+            if (!active) {
+              return;
+            }
+
+            setConnectionStatus(status);
+            if (status === "connected") {
+              void reconcileLobby(latestStateVersion.current === 0);
+            }
+          },
+        });
       } catch {
         if (active) {
           setScreen({
@@ -114,25 +189,18 @@ export default function MultiplayerLobby({ joinCode }: { joinCode: string }) {
 
     function handleVisibilityChange() {
       if (document.visibilityState === "visible") {
-        void refreshLobby();
+        setConnectionStatus("connecting");
+        void reconcileLobby();
       }
     }
 
     void initialize();
-    const timer = window.setInterval(() => {
-      if (
-        sessionReady.current &&
-        (currentStatus.current === null || currentStatus.current === "lobby")
-      ) {
-        void refreshLobby();
-      }
-    }, POLLING_INTERVAL_MS);
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       active = false;
-      controller.abort();
-      window.clearInterval(timer);
+      refreshController.current?.abort();
+      void subscription?.unsubscribe();
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [joinCode]);
@@ -157,7 +225,10 @@ export default function MultiplayerLobby({ joinCode }: { joinCode: string }) {
         return;
       }
 
-      currentStatus.current = result.data.status;
+      latestStateVersion.current = Math.max(
+        latestStateVersion.current,
+        result.data.stateVersion,
+      );
       setScreen({ status: "ready", lobby: result.data });
       setConfirmCancel(false);
     } catch {
@@ -224,6 +295,12 @@ export default function MultiplayerLobby({ joinCode }: { joinCode: string }) {
   const isLobbyOpen = lobby.status === "lobby";
   const canStart =
     isHost && isLobbyOpen && lobby.participantCount === lobby.capacity;
+  const connectionLabel =
+    connectionStatus === "connected"
+      ? "Realtime connected"
+      : connectionStatus === "connecting"
+        ? "Reconnecting…"
+        : "Connection interrupted · Retrying connection";
   const ownDisplayName = lobby.ownParticipant?.displayName;
   const inviteUrl =
     typeof window === "undefined"
@@ -428,11 +505,14 @@ export default function MultiplayerLobby({ joinCode }: { joinCode: string }) {
                 Waiting for host
               </p>
               <p className="mt-2 text-sm text-neutral-500">
-                Keep this screen open. The lobby refreshes automatically.
+                Keep this screen open. Player arrivals update automatically.
               </p>
             </div>
           )}
 
+          <p aria-live="polite" className="sr-only">
+            {lobby.participantCount} of {lobby.capacity} players ready. {lobbyStatusLabel(lobby.status)}.
+          </p>
           <p aria-live="polite" className="mt-4 min-h-5 text-sm text-rose-200">
             {actionMessage}
           </p>
@@ -440,7 +520,7 @@ export default function MultiplayerLobby({ joinCode }: { joinCode: string }) {
       </div>
 
       <p className="mt-6 text-center font-mono text-[9px] uppercase tracking-[0.22em] text-neutral-600">
-        Secure lobby state · Refreshes every 5 seconds until V2.4 Realtime
+        Secure lobby state · {connectionLabel}
       </p>
     </section>
   );
