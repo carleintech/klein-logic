@@ -40,8 +40,13 @@ export class ArenaAuthorizationError extends Error {
       | "participant-required"
       | "participant-inactive"
       | "invalid-answer"
+      | "invalid-join-code"
+      | "invalid-display-name"
+      | "display-name-taken"
       | "tournament-not-joinable"
       | "tournament-full"
+      | "lobby-not-ready"
+      | "invalid-lobby-transition"
       | "round-not-open"
       | "response-already-submitted",
     message: string,

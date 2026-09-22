@@ -9,7 +9,8 @@ export type TournamentStatus =
   | "countdown"
   | "round"
   | "round-results"
-  | "completed";
+  | "completed"
+  | "cancelled";
 
 export type ArenaPlayerStatus = "active" | "eliminated" | "champion";
 export type ArenaParticipantType = "simulated" | "human";

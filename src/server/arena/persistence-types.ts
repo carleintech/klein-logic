@@ -11,6 +11,10 @@ import type {
   SumRollChallenge,
 } from "../../game/sumroll/types";
 import type { PublicArenaChallenge } from "../../arena/challenges/types";
+import type {
+  LobbyJoinOutcome,
+  LobbyTransition,
+} from "./lobby";
 
 export type ParticipantRole = "host" | "player";
 export type PersistedRoundStatus =
@@ -81,6 +85,36 @@ export type JoinIdentityParticipantRecord = {
   tieBreakValue: number;
 };
 
+export type CreateLobbyRecord = {
+  id?: string;
+  publicJoinCode: string;
+  joinCodeDigest: string;
+  hostSubjectId: string;
+  preset: TournamentPreset;
+  privateSeed: string;
+};
+
+export type JoinLobbyParticipantRecord = {
+  publicJoinCode: string;
+  subjectId: string;
+  enginePlayerId: string;
+  displayName: string;
+  tieBreakValue: number;
+};
+
+export type JoinLobbyPersistenceResult = {
+  tournamentId: string;
+  participant: StoredParticipant;
+  outcome: LobbyJoinOutcome;
+  stateVersion: number;
+};
+
+export type TransitionLobbyRecord = {
+  publicJoinCode: string;
+  hostSubjectId: string;
+  transition: LobbyTransition;
+};
+
 export type PersistRoundResultRecord = {
   tournamentId: string;
   roundId: string;
@@ -93,6 +127,7 @@ export type PersistRoundResultRecord = {
 export type StoredTournament = {
   id: string;
   joinCodeDigest: string;
+  publicJoinCode: string | null;
   hostUserId: string | null;
   presetId: string;
   presetSnapshot: TournamentPreset;

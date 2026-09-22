@@ -11,9 +11,19 @@ import {
   type ArenaOperation,
 } from "../arena/authorization";
 import type { ArenaIdentity } from "../arena/identity";
+import {
+  generateLobbyJoinCode,
+  generateLobbyPrivateSeed,
+  MULTIPLAYER_LOBBY_PRESET,
+  normalizeLobbyDisplayName,
+  normalizeLobbyJoinCode,
+  type JoinLobbyResult,
+  type PublicLobbyView,
+} from "../arena/lobby";
 import type {
   StoredParticipant,
   StoredResponse,
+  StoredTournamentAggregate,
 } from "../arena/persistence-types";
 import { ArenaRepository } from "../repositories/arena-repository";
 
@@ -33,23 +43,26 @@ export type SubmitArenaAnswerRequest = {
   answer: ChallengeAnswer;
 };
 
-function isPostgresError(error: unknown, code: string): boolean {
+export type JoinLobbyRequest = {
+  joinCode: string;
+  displayName: string;
+};
+
+export type ArenaServiceOptions = {
+  generateJoinCode?: () => string;
+  generatePrivateSeed?: () => string;
+};
+
+function isPostgresError(
+  error: unknown,
+  code: string,
+): error is { code: string; constraint?: unknown } {
   return (
     typeof error === "object" &&
     error !== null &&
     "code" in error &&
     error.code === code
   );
-}
-
-function normalizeDisplayName(displayName: string): string {
-  const normalized = displayName.trim().replace(/\s+/g, " ");
-
-  if (normalized.length < 2 || normalized.length > 24) {
-    throw new Error("Display name must contain between 2 and 24 characters.");
-  }
-
-  return normalized;
 }
 
 function createTieBreakValue(tournamentId: string, subjectId: string): number {
@@ -59,8 +72,209 @@ function createTieBreakValue(tournamentId: string, subjectId: string): number {
     .readUInt32BE(0);
 }
 
+function normalizeJoinCodeOrThrow(joinCode: string): string {
+  try {
+    return normalizeLobbyJoinCode(joinCode);
+  } catch {
+    throw new ArenaAuthorizationError(
+      "invalid-join-code",
+      "The lobby join code is invalid.",
+    );
+  }
+}
+
+function normalizeDisplayNameOrThrow(displayName: string): string {
+  try {
+    return normalizeLobbyDisplayName(displayName);
+  } catch (error) {
+    throw new ArenaAuthorizationError(
+      "invalid-display-name",
+      error instanceof Error ? error.message : "The display name is invalid.",
+    );
+  }
+}
+
+function serializePublicLobby(
+  aggregate: StoredTournamentAggregate,
+  identity: ArenaIdentity,
+): PublicLobbyView {
+  const joinCode = aggregate.tournament.publicJoinCode;
+
+  if (!joinCode) {
+    throw new Error("A multiplayer lobby must have a public join code.");
+  }
+
+  const ownParticipant = aggregate.participants.find(
+    (participant) => participant.authUserId === identity.subjectId,
+  );
+
+  return {
+    joinCode,
+    presetId: aggregate.tournament.presetId,
+    presetName: aggregate.tournament.presetSnapshot.name,
+    status: aggregate.tournament.status,
+    capacity: aggregate.tournament.capacity,
+    participantCount: aggregate.participants.length,
+    participants: aggregate.participants.map((participant) => ({
+      displayName: participant.displayName,
+      status: participant.status,
+    })),
+    isHost: aggregate.tournament.hostUserId === identity.subjectId,
+    ownParticipant: ownParticipant
+      ? {
+          displayName: ownParticipant.displayName,
+          status: ownParticipant.status,
+          joinedAt: ownParticipant.joinedAt.toISOString(),
+        }
+      : null,
+  };
+}
+
 export class ArenaService {
-  constructor(private readonly repository: ArenaRepository) {}
+  private readonly generateJoinCode: () => string;
+  private readonly generatePrivateSeed: () => string;
+
+  constructor(
+    private readonly repository: ArenaRepository,
+    options: ArenaServiceOptions = {},
+  ) {
+    this.generateJoinCode = options.generateJoinCode ?? generateLobbyJoinCode;
+    this.generatePrivateSeed =
+      options.generatePrivateSeed ?? generateLobbyPrivateSeed;
+  }
+
+  async createLobby(identity: ArenaIdentity): Promise<PublicLobbyView> {
+    const privateSeed = this.generatePrivateSeed();
+
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      const joinCode = normalizeJoinCodeOrThrow(this.generateJoinCode());
+
+      try {
+        const aggregate = await this.repository.createLobby({
+          publicJoinCode: joinCode,
+          joinCodeDigest: createHash("sha256").update(joinCode).digest("hex"),
+          hostSubjectId: identity.subjectId,
+          preset: MULTIPLAYER_LOBBY_PRESET,
+          privateSeed,
+        });
+
+        return serializePublicLobby(aggregate, identity);
+      } catch (error) {
+        const isJoinCodeCollision =
+          isPostgresError(error, "23505") &&
+          "constraint" in error &&
+          (error.constraint === "tournaments_public_join_code_unique" ||
+            error.constraint === "tournaments_join_code_digest_key");
+
+        if (!isJoinCodeCollision || attempt === 7) {
+          throw error;
+        }
+      }
+    }
+
+    throw new Error("Unable to allocate a unique lobby join code.");
+  }
+
+  async joinLobby(
+    identity: ArenaIdentity,
+    request: JoinLobbyRequest,
+  ): Promise<JoinLobbyResult> {
+    const joinCode = normalizeJoinCodeOrThrow(request.joinCode);
+    const result = await this.repository.joinLobbyForIdentity({
+      publicJoinCode: joinCode,
+      subjectId: identity.subjectId,
+      enginePlayerId: `human-${randomUUID()}`,
+      displayName: normalizeDisplayNameOrThrow(request.displayName),
+      tieBreakValue: createTieBreakValue(joinCode, identity.subjectId),
+    });
+    const aggregate = await this.repository.getTournamentAggregate(
+      result.tournamentId,
+    );
+
+    return {
+      outcome: result.outcome,
+      lobby: serializePublicLobby(aggregate, identity),
+    };
+  }
+
+  async getLobby(
+    identity: ArenaIdentity,
+    joinCodeInput: string,
+  ): Promise<PublicLobbyView> {
+    const joinCode = normalizeJoinCodeOrThrow(joinCodeInput);
+    const aggregate = await this.repository.getLobbyAggregateByCode(joinCode);
+
+    if (!aggregate) {
+      throw new ArenaAuthorizationError(
+        "tournament-not-found",
+        "The requested lobby was not found.",
+      );
+    }
+
+    return serializePublicLobby(aggregate, identity);
+  }
+
+  async startLobby(
+    identity: ArenaIdentity,
+    joinCodeInput: string,
+  ): Promise<PublicLobbyView> {
+    const joinCode = normalizeJoinCodeOrThrow(joinCodeInput);
+    const aggregate = await this.repository.getLobbyAggregateByCode(joinCode);
+
+    if (!aggregate) {
+      throw new ArenaAuthorizationError(
+        "tournament-not-found",
+        "The requested lobby was not found.",
+      );
+    }
+
+    await this.authorizeHostOperation(
+      identity,
+      aggregate.tournament.id,
+      "start-tournament",
+    );
+    const tournamentId = await this.repository.transitionLobby({
+      publicJoinCode: joinCode,
+      hostSubjectId: identity.subjectId,
+      transition: "start",
+    });
+
+    return serializePublicLobby(
+      await this.repository.getTournamentAggregate(tournamentId),
+      identity,
+    );
+  }
+
+  async cancelLobby(
+    identity: ArenaIdentity,
+    joinCodeInput: string,
+  ): Promise<PublicLobbyView> {
+    const joinCode = normalizeJoinCodeOrThrow(joinCodeInput);
+    const aggregate = await this.repository.getLobbyAggregateByCode(joinCode);
+
+    if (!aggregate) {
+      throw new ArenaAuthorizationError(
+        "tournament-not-found",
+        "The requested lobby was not found.",
+      );
+    }
+
+    await this.authorizeHostOperation(
+      identity,
+      aggregate.tournament.id,
+      "cancel-tournament",
+    );
+    const tournamentId = await this.repository.transitionLobby({
+      publicJoinCode: joinCode,
+      hostSubjectId: identity.subjectId,
+      transition: "cancel",
+    });
+
+    return serializePublicLobby(
+      await this.repository.getTournamentAggregate(tournamentId),
+      identity,
+    );
+  }
 
   async resolveAuthorizationRole(
     identity: ArenaIdentity,
@@ -112,7 +326,7 @@ export class ArenaService {
       tournamentId: request.tournamentId,
       subjectId: identity.subjectId,
       enginePlayerId: `human-${randomUUID()}`,
-      displayName: normalizeDisplayName(request.displayName),
+      displayName: normalizeDisplayNameOrThrow(request.displayName),
       tieBreakValue: createTieBreakValue(
         request.tournamentId,
         identity.subjectId,
