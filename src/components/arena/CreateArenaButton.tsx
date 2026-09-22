@@ -7,6 +7,7 @@ import { createArenaLobbyAction } from "../../app/arena/actions";
 import { lobbyErrorMessage } from "../../arena/lobby-ui";
 import { ensureAnonymousSession } from "../../lib/supabase/anonymous-session";
 import { createSupabaseBrowserClient } from "../../lib/supabase/client";
+import { LogicButton } from "../logic/LogicPrimitives";
 
 export default function CreateArenaButton() {
   const router = useRouter();
@@ -44,17 +45,19 @@ export default function CreateArenaButton() {
 
   return (
     <div>
-      <button
+      <LogicButton
         type="button"
         onClick={handleCreate}
         disabled={pending}
-        className="min-h-14 w-full border border-cyan-300 bg-cyan-300 px-6 py-4 font-mono text-xs font-black uppercase tracking-[0.2em] text-black outline-none transition hover:bg-white focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#071019] disabled:cursor-wait disabled:opacity-60"
+        variant="arena"
+        size="large"
+        className="w-full"
       >
         {pending ? "Creating Arena…" : "Create Arena"}
-      </button>
+      </LogicButton>
       <p
         aria-live="polite"
-        className="mt-3 min-h-5 text-sm leading-5 text-rose-200"
+        className="mt-3 min-h-5 text-sm leading-5 text-state-danger"
       >
         {message}
       </p>

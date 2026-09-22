@@ -20,23 +20,23 @@ export default async function JoinArenaPage({
 
   return (
     <ArenaShell context="PIN³ // Join Arena">
-      <section className="mx-auto grid min-h-[calc(100vh-7rem)] max-w-5xl items-center gap-10 py-12 lg:grid-cols-[0.9fr_1.1fr]">
+      <section className="mx-auto grid min-h-[calc(100vh-5rem)] max-w-5xl items-center gap-10 py-[var(--section-space)] lg:grid-cols-[0.9fr_1.1fr]">
         <div>
-          <p className="font-mono text-[10px] font-black uppercase tracking-[0.32em] text-cyan-300">
+          <p className="logic-kicker !text-logic-secondary">
             Player access
           </p>
           <h1 className="mt-5 text-5xl font-black tracking-tight sm:text-6xl">
             Join Arena
           </h1>
-          <p className="mt-5 max-w-md text-lg leading-8 text-neutral-400">
+          <p className="mt-5 max-w-md text-lg leading-8 text-text-secondary">
             One code. One identity. Your place in the tournament remains yours
             if you reconnect.
           </p>
-          <div className="mt-8 border-l border-cyan-300/30 pl-5">
-            <p className="font-mono text-xs font-bold uppercase tracking-[0.18em] text-white">
+          <div className="mt-8 border-l border-logic-secondary/40 pl-5">
+            <p className="font-mono text-xs font-bold uppercase tracking-[0.18em] text-text-primary">
               3 seconds. One choice.
             </p>
-            <p className="mt-2 text-sm text-neutral-500">Stay sharp.</p>
+            <p className="mt-2 text-sm text-text-muted">Stay sharp.</p>
           </div>
         </div>
         <JoinArenaForm initialJoinCode={initialJoinCode} />

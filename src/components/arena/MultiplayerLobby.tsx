@@ -22,6 +22,12 @@ import type { PublicLobbyView } from "../../server/arena/lobby";
 import { ensureAnonymousSession } from "../../lib/supabase/anonymous-session";
 import { createSupabaseBrowserClient } from "../../lib/supabase/client";
 import { subscribeToLobbyRealtime } from "../../lib/supabase/lobby-realtime";
+import {
+  LogicCode,
+  LogicMetric,
+  LogicStatus,
+  logicButtonClass,
+} from "../logic/LogicPrimitives";
 
 type LobbyScreenState =
   | { status: "loading" }
@@ -252,8 +258,8 @@ export default function MultiplayerLobby({
     return (
       <section className="mx-auto flex min-h-[620px] max-w-4xl items-center justify-center">
         <div className="text-center" role="status">
-          <div className="mx-auto h-3 w-3 rounded-full bg-cyan-200 shadow-[0_0_24px_rgba(103,232,249,0.95)] motion-safe:animate-pulse" />
-          <p className="mt-6 font-mono text-xs uppercase tracking-[0.28em] text-cyan-200">
+          <div className="mx-auto h-3 w-3 rotate-45 bg-logic-secondary shadow-[0_0_24px_rgba(113,219,232,0.5)]" />
+          <p className="mt-6 font-mono text-xs uppercase tracking-[0.28em] text-logic-secondary">
             Resolving Arena
           </p>
         </div>
@@ -264,23 +270,21 @@ export default function MultiplayerLobby({
   if (screen.status === "error") {
     return (
       <section className="mx-auto flex min-h-[620px] max-w-xl items-center justify-center text-center">
-        <div className="w-full border border-rose-300/25 bg-rose-300/[0.045] p-7 sm:p-10">
-          <p className="font-mono text-[10px] uppercase tracking-[0.26em] text-rose-200">
-            Arena connection
-          </p>
+        <div className="logic-panel w-full border-state-danger/30 p-7 sm:p-10">
+          <LogicStatus status="error" label="Arena connection" />
           <h1 className="mt-4 text-3xl font-black">Unable to enter</h1>
           <p className="mt-4 leading-7 text-neutral-300">{screen.message}</p>
           <div className="mt-8 grid gap-3 sm:grid-cols-2">
             <button
               type="button"
               onClick={() => window.location.reload()}
-              className="min-h-12 border border-cyan-300 bg-cyan-300 px-5 font-mono text-xs font-black uppercase tracking-[0.18em] text-black outline-none hover:bg-white focus-visible:ring-2 focus-visible:ring-white"
+              className={logicButtonClass({ variant: "arena", className: "w-full" })}
             >
               Try again
             </button>
             <Link
               href="/arena/join"
-              className="flex min-h-12 items-center justify-center border border-white/15 px-5 font-mono text-xs font-black uppercase tracking-[0.18em] text-white outline-none hover:border-white focus-visible:ring-2 focus-visible:ring-cyan-300"
+              className={logicButtonClass({ variant: "secondary", className: "w-full" })}
             >
               Enter a code
             </Link>
@@ -326,48 +330,46 @@ export default function MultiplayerLobby({
   return (
     <section className="mx-auto w-full max-w-5xl py-8 sm:py-12">
       <div className="grid gap-6 lg:grid-cols-[0.78fr_1.22fr]">
-        <aside className="border border-cyan-300/20 bg-cyan-300/[0.035] p-5 sm:p-7">
-          <p className="font-mono text-[10px] font-black uppercase tracking-[0.28em] text-cyan-200">
+        <aside className="logic-panel border-logic-secondary/25 p-5 sm:p-7">
+          <p className="font-mono text-[10px] font-black uppercase tracking-[0.28em] text-logic-secondary">
             PIN³ · {isHost ? "Host console" : "Player lobby"}
           </p>
           <h1 className="mt-4 text-3xl font-black tracking-tight sm:text-4xl">
             Waiting Room
           </h1>
-          <p className="mt-3 text-sm leading-6 text-neutral-400">
+          <p className="mt-3 text-sm leading-6 text-text-secondary">
             {isHost
               ? "Share the code. The tournament can begin when the field is complete."
               : "You are connected. The host controls the start."}
           </p>
 
-          <div className="mt-7 border-y border-white/10 py-6 text-center">
-            <p className="font-mono text-[9px] uppercase tracking-[0.28em] text-neutral-500">
+          <div className="mt-7 border-y border-border-subtle py-6 text-center">
+            <p className="font-mono text-[9px] uppercase tracking-[0.28em] text-text-muted">
               Join code
             </p>
-            <p className="mt-3 font-mono text-4xl font-black tracking-[0.28em] text-white sm:text-5xl">
-              {lobby.joinCode}
-            </p>
+            <p className="mt-3"><LogicCode>{lobby.joinCode}</LogicCode></p>
             <div className="mt-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
               <button
                 type="button"
                 onClick={() => void copyText(lobby.joinCode, "Arena code copied.")}
-                className="min-h-11 border border-white/15 px-3 font-mono text-[10px] font-black uppercase tracking-[0.16em] text-white outline-none transition hover:border-cyan-300 focus-visible:ring-2 focus-visible:ring-cyan-300"
+                className={logicButtonClass({ variant: "secondary", size: "compact", className: "w-full" })}
               >
                 Copy code
               </button>
               <button
                 type="button"
                 onClick={() => void copyText(inviteUrl, "Invite link copied.")}
-                className="min-h-11 border border-white/15 px-3 font-mono text-[10px] font-black uppercase tracking-[0.16em] text-white outline-none transition hover:border-cyan-300 focus-visible:ring-2 focus-visible:ring-cyan-300"
+                className={logicButtonClass({ variant: "secondary", size: "compact", className: "w-full" })}
               >
                 Copy invite
               </button>
             </div>
-            <p aria-live="polite" className="mt-3 min-h-5 text-xs text-cyan-100">
+            <p aria-live="polite" className="mt-3 min-h-5 text-xs text-logic-secondary">
               {copyMessage}
             </p>
           </div>
 
-          <dl className="mt-6 grid grid-cols-2 gap-px bg-white/10">
+          <dl className="mt-6 grid grid-cols-2 gap-px bg-border-subtle">
             <LobbyMetric
               label="Players"
               value={`${lobby.participantCount}/${lobby.capacity}`}
@@ -378,29 +380,29 @@ export default function MultiplayerLobby({
           {!isHost && !lobby.ownParticipant && (
             <Link
               href={`/arena/join?code=${lobby.joinCode}`}
-              className="mt-6 flex min-h-12 items-center justify-center border border-cyan-300 bg-cyan-300 px-4 font-mono text-xs font-black uppercase tracking-[0.18em] text-black outline-none hover:bg-white focus-visible:ring-2 focus-visible:ring-white"
+              className={logicButtonClass({ variant: "arena", className: "mt-6 w-full" })}
             >
               Join this Arena
             </Link>
           )}
         </aside>
 
-        <div className="border border-white/10 bg-[#080d13]/90 p-5 sm:p-7">
-          <div className="flex flex-col gap-3 border-b border-white/10 pb-5 sm:flex-row sm:items-end sm:justify-between">
+        <div className="logic-panel p-5 sm:p-7">
+          <div className="flex flex-col gap-3 border-b border-border-subtle pb-5 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-neutral-500">
+              <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-muted">
                 Connected field
               </p>
               <h2 className="mt-2 text-2xl font-black">Players</h2>
             </div>
-            <p className="font-mono text-sm font-black text-emerald-200">
+            <p className="font-mono text-sm font-black text-state-success">
               {lobby.participantCount} / {lobby.capacity} READY
             </p>
           </div>
 
-          <div className="mt-5 h-1 overflow-hidden bg-white/8">
+          <div className="mt-5 h-1 overflow-hidden bg-border-subtle">
             <div
-              className="h-full bg-cyan-300 transition-[width] duration-500 motion-reduce:transition-none"
+              className="h-full bg-logic-secondary transition-[width] duration-500 motion-reduce:transition-none"
               style={{
                 width: `${Math.min(100, (lobby.participantCount / lobby.capacity) * 100)}%`,
               }}
@@ -447,7 +449,7 @@ export default function MultiplayerLobby({
                 type="button"
                 onClick={() => void runHostAction("start")}
                 disabled={!canStart || actionPending !== null}
-                className="min-h-14 w-full border border-cyan-300 bg-cyan-300 px-5 font-mono text-xs font-black uppercase tracking-[0.2em] text-black outline-none transition hover:bg-white focus-visible:ring-2 focus-visible:ring-white disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/5 disabled:text-neutral-500"
+                className={logicButtonClass({ variant: "arena", size: "large", className: "w-full" })}
               >
                 {actionPending === "start"
                   ? "Starting…"
@@ -462,7 +464,7 @@ export default function MultiplayerLobby({
                 disabled={actionPending !== null}
                 aria-expanded={confirmCancel}
                 aria-controls="cancel-arena-confirmation"
-                className="mt-3 min-h-11 w-full font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-neutral-500 outline-none transition hover:text-rose-200 focus-visible:ring-2 focus-visible:ring-rose-300"
+                className={logicButtonClass({ variant: "ghost", size: "compact", className: "mt-3 w-full hover:text-state-danger" })}
               >
                 Cancel Tournament
               </button>
@@ -520,21 +522,14 @@ export default function MultiplayerLobby({
       </div>
 
       <p className="mt-6 text-center font-mono text-[9px] uppercase tracking-[0.22em] text-neutral-600">
-        Secure lobby state · {connectionLabel}
+        <LogicStatus status={connectionStatus === "connected" ? "ready" : connectionStatus === "connecting" ? "connecting" : "reconnecting"} label={connectionLabel} />
       </p>
     </section>
   );
 }
 
 function LobbyMetric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="bg-[#080d13] px-3 py-4 text-center">
-      <dt className="font-mono text-[9px] uppercase tracking-[0.18em] text-neutral-500">
-        {label}
-      </dt>
-      <dd className="mt-2 font-mono text-sm font-black text-white">{value}</dd>
-    </div>
-  );
+  return <LogicMetric label={label} value={value} className="text-center" />;
 }
 
 function TournamentTransition({

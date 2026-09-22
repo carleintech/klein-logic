@@ -1,321 +1,82 @@
 import Link from "next/link";
 
-const games = [
-  {
-    name: "Regions",
-    description:
-      "Divide the grid into perfectly sized regions using logic and spatial reasoning.",
-    icon: "▦",
-    status: "PLAY NOW",
-    href: "/play",
-    available: true,
-  },
-  {
-    name: "SumRoll",
-    description:
-      "Scan the dice, hit the target, and build a streak before time runs out.",
-    icon: "⚄",
-    status: "PLAY NOW",
-    href: "/games/sumroll",
-    available: true,
-  },
-  {
-    name: "Words",
-    description:
-      "Test your vocabulary and uncover hidden relationships between words.",
-    icon: "Aa",
-    status: "COMING SOON",
-    href: "#",
-    available: false,
-  },
-];
+import KleinLogicShell from "@/components/logic/KleinLogicShell";
+import { LogicPanel, LogicStatus, logicButtonClass } from "@/components/logic/LogicPrimitives";
+
+const experiences = [
+  { name: "Regions", code: "R01", label: "Spatial reasoning", description: "Divide the grid into exact regions. Every clue and every cell matters.", href: "/play", signal: "logic" },
+  { name: "SumRoll", code: "S02", label: "Visual arithmetic", description: "Read the field, reach the target, and hold accuracy under time pressure.", href: "/games/sumroll", signal: "logic" },
+  { name: "PIN³", code: "P03", label: "Competitive intelligence", description: "Enter a live elimination Arena where fast, correct decisions determine who remains.", href: "/arena", signal: "arena" },
+] as const;
 
 export default function Home() {
   return (
-    <main className="min-h-screen overflow-hidden bg-[#080a0f] text-white">
-      {/* Navigation */}
-      <nav className="border-b border-white/10">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5 lg:px-8">
-          <Link href="/" className="flex items-center gap-3">
-            <LogoMark />
+    <KleinLogicShell context="Challenge Your Mind" status="Systems online">
+      <section className="grid min-h-[calc(100vh-5rem)] items-center gap-14 py-[var(--section-space)] lg:grid-cols-[1.05fr_0.95fr]">
+        <div>
+          <p className="logic-kicker">KleinLogic · Living Logic</p>
+          <h1 className="mt-6 max-w-4xl text-5xl font-black uppercase leading-[0.92] tracking-[-0.055em] sm:text-7xl lg:text-[4.75rem] xl:text-[5.25rem]">
+            Think deeper.<br /><span className="text-logic-primary">Decide faster.</span>
+          </h1>
+          <p className="mt-7 max-w-xl text-base leading-7 text-text-secondary sm:text-lg sm:leading-8">Original logic experiences built for precision, composure, and the moment uncertainty resolves into structure.</p>
+          <div className="mt-9 flex flex-wrap gap-3">
+            <Link href="/games" className={logicButtonClass({ size: "large" })}>Explore games</Link>
+            <Link href="/arena" className={logicButtonClass({ variant: "secondary", size: "large" })}>Enter PIN³</Link>
+          </div>
+        </div>
+        <LogicField />
+      </section>
 
-            <div>
-              <p className="text-lg font-black tracking-tight">
-                KLEIN
-                <span className="text-emerald-400">LOGIC</span>
-              </p>
-            </div>
-          </Link>
-
-          <div className="flex items-center gap-3">
-            <span className="hidden text-sm text-neutral-500 sm:block">
-              Daily puzzles for curious minds
-            </span>
-
-            <Link
-              href="/games"
-              className="rounded-full bg-white px-5 py-2.5 text-sm font-bold text-black transition hover:bg-neutral-200"
-            >
-              Games
+      <section id="experiences" className="border-t border-border-subtle py-[var(--section-space)]">
+        <div className="max-w-2xl">
+          <p className="logic-kicker">Current experiences</p>
+          <h2 className="mt-4 text-3xl font-black tracking-[-0.03em] sm:text-4xl">Choose how you want to think.</h2>
+          <p className="mt-4 leading-7 text-text-secondary">Practice alone, sharpen a specific skill, or perform under competitive pressure.</p>
+        </div>
+        <div className="mt-10 grid gap-4 lg:grid-cols-3">
+          {experiences.map((experience) => (
+            <Link key={experience.name} href={experience.href} className="group rounded-[var(--radius-panel)] border border-border-default bg-surface-panel p-[var(--panel-padding)] transition-[border-color,background-color] hover:border-border-strong hover:bg-surface-panel-hover">
+              <div className="flex items-start justify-between gap-4">
+                <span className={`font-mono text-xs font-black tracking-[0.18em] ${experience.signal === "arena" ? "text-logic-secondary" : "text-logic-primary"}`}>{experience.code}</span>
+                <LogicStatus status={experience.signal === "arena" ? "active" : "ready"} label="Available" />
+              </div>
+              <p className="mt-14 font-mono text-[0.625rem] font-bold uppercase tracking-[0.2em] text-text-muted">{experience.label}</p>
+              <h3 className="mt-2 text-2xl font-black">{experience.name}</h3>
+              <p className="mt-4 min-h-20 leading-7 text-text-secondary">{experience.description}</p>
+              <span className="mt-7 inline-flex font-mono text-xs font-black uppercase tracking-[0.16em] text-text-primary group-hover:text-logic-primary">Open experience →</span>
             </Link>
-          </div>
-        </div>
-      </nav>
-
-      {/* Hero */}
-      <section className="relative">
-        <div className="pointer-events-none absolute left-1/2 top-0 h-[500px] w-[500px] -translate-x-1/2 rounded-full bg-emerald-500/10 blur-[140px]" />
-
-        <div className="relative mx-auto grid max-w-7xl items-center gap-16 px-6 py-20 lg:grid-cols-2 lg:px-8 lg:py-28">
-          <div>
-            <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/5 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-emerald-300">
-              <span className="h-2 w-2 rounded-full bg-emerald-400" />A new
-              puzzle every day
-            </div>
-
-            <h1 className="max-w-3xl text-5xl font-black leading-[0.95] tracking-[-0.045em] sm:text-6xl lg:text-7xl">
-              Think deeper.
-              <br />
-              Play smarter.
-            </h1>
-
-            <p className="mt-7 max-w-xl text-lg leading-8 text-neutral-400">
-              Short daily logic games designed to challenge your reasoning,
-              sharpen your mind, and give you that satisfying moment when
-              everything clicks.
-            </p>
-
-            <div className="mt-9 flex flex-wrap gap-3">
-              <Link
-                href="/play"
-                className="inline-flex min-h-12 items-center justify-center rounded-xl bg-emerald-400 px-7 font-black text-black transition hover:bg-emerald-300"
-              >
-                Play today&apos;s puzzle →
-              </Link>
-
-              <a
-                href="#games"
-                className="inline-flex min-h-12 items-center justify-center rounded-xl border border-white/15 px-7 font-bold text-neutral-200 transition hover:bg-white/5"
-              >
-                Explore games
-              </a>
-            </div>
-
-            <div className="mt-10 flex flex-wrap gap-x-8 gap-y-3 text-sm text-neutral-500">
-              <span>✓ Free to play</span>
-              <span>✓ New puzzles daily</span>
-              <span>✓ No download required</span>
-            </div>
-          </div>
-
-          <HeroPuzzle />
-        </div>
-      </section>
-
-      {/* Games */}
-      <section id="games" className="border-t border-white/10">
-        <div className="mx-auto max-w-7xl px-6 py-20 lg:px-8">
-          <div className="mb-10">
-            <p className="text-xs font-bold uppercase tracking-[0.25em] text-emerald-400">
-              KleinLogic Games
-            </p>
-
-            <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">
-              Your daily mental workout.
-            </h2>
-
-            <p className="mt-3 max-w-2xl text-neutral-400">
-              Train spatial reasoning with Regions or test visual arithmetic
-              and speed with SumRoll.
-            </p>
-          </div>
-
-          <div className="grid gap-5 md:grid-cols-3">
-            {games.map((game) => {
-              const content = (
-                <>
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-lg font-black">
-                      {game.icon}
-                    </div>
-
-                    <span
-                      className={[
-                        "rounded-full px-3 py-1 text-[10px] font-black tracking-[0.15em]",
-                        game.available
-                          ? "bg-emerald-400/10 text-emerald-300"
-                          : "bg-white/5 text-neutral-500",
-                      ].join(" ")}
-                    >
-                      {game.status}
-                    </span>
-                  </div>
-
-                  <h3 className="mt-8 text-2xl font-black">{game.name}</h3>
-
-                  <p className="mt-3 min-h-20 leading-7 text-neutral-400">
-                    {game.description}
-                  </p>
-
-                  <div className="mt-7 text-sm font-bold">
-                    {game.available ? (
-                      <span className="text-emerald-300">
-                        Start challenge →
-                      </span>
-                    ) : (
-                      <span className="text-neutral-600">In development</span>
-                    )}
-                  </div>
-                </>
-              );
-
-              if (game.available) {
-                return (
-                  <Link
-                    key={game.name}
-                    href={game.href}
-                    className="group rounded-3xl border border-white/10 bg-white/[0.025] p-6 transition hover:-translate-y-1 hover:border-emerald-400/30 hover:bg-white/[0.04]"
-                  >
-                    {content}
-                  </Link>
-                );
-              }
-
-              return (
-                <div
-                  key={game.name}
-                  className="rounded-3xl border border-white/10 bg-white/[0.015] p-6 opacity-60"
-                >
-                  {content}
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="mt-8 text-center">
-            <Link
-              href="/games"
-              className="inline-flex min-h-12 items-center justify-center rounded-xl border border-white/15 px-7 font-bold text-neutral-200 transition hover:bg-white/5"
-            >
-              View all games →
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* Philosophy */}
-      <section className="border-t border-white/10">
-        <div className="mx-auto max-w-4xl px-6 py-20 text-center">
-          <LogoMark large />
-
-          <p className="mt-7 text-xs font-bold uppercase tracking-[0.35em] text-neutral-500">
-            KleinLogic™
-          </p>
-
-          <h2 className="mt-4 text-4xl font-black tracking-tight">
-            Challenge Your Mind.
-          </h2>
-
-          <p className="mx-auto mt-5 max-w-2xl leading-7 text-neutral-400">
-            Built around simple rules and meaningful challenges. Every
-            KleinLogic game should be easy to understand, difficult to master,
-            and satisfying to solve.
-          </p>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="border-t border-white/10">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-6 py-8 text-sm text-neutral-600 sm:flex-row sm:items-center sm:justify-between lg:px-8">
-          <p>© 2026 KleinLogic. All rights reserved.</p>
-
-          <p>A TechKlein experience.</p>
-        </div>
-      </footer>
-    </main>
-  );
-}
-
-function LogoMark({ large = false }: { large?: boolean }) {
-  return (
-    <div
-      className={[
-        "grid grid-cols-2 gap-1",
-        large ? "mx-auto h-16 w-16" : "h-9 w-9",
-      ].join(" ")}
-      aria-hidden="true"
-    >
-      <span className="rounded-sm bg-emerald-400" />
-      <span className="rounded-sm bg-white" />
-      <span className="rounded-sm bg-white" />
-      <span className="rounded-sm bg-emerald-400" />
-    </div>
-  );
-}
-
-function HeroPuzzle() {
-  const cells = [
-    { value: "3", className: "bg-rose-500" },
-    { value: "", className: "bg-rose-500/25" },
-    { value: "", className: "bg-rose-500/25" },
-    { value: "4", className: "bg-amber-400" },
-
-    { value: "", className: "bg-emerald-500/25" },
-    { value: "", className: "bg-emerald-500/25" },
-    { value: "", className: "bg-emerald-500/25" },
-    { value: "", className: "bg-cyan-500/25" },
-
-    { value: "", className: "bg-emerald-500/25" },
-    { value: "8", className: "bg-emerald-500" },
-    { value: "", className: "bg-emerald-500/25" },
-    { value: "", className: "bg-cyan-500/25" },
-
-    { value: "4", className: "bg-violet-500" },
-    { value: "", className: "bg-violet-500/25" },
-    { value: "", className: "bg-cyan-500/25" },
-    { value: "6", className: "bg-cyan-500" },
-  ];
-
-  return (
-    <div className="mx-auto w-full max-w-md">
-      <div className="rounded-[2rem] border border-white/10 bg-white/[0.035] p-5 sm:p-7">
-        <div className="mb-5 flex items-center justify-between">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-neutral-500">
-              Today
-            </p>
-
-            <p className="mt-1 font-bold">Daily Challenge</p>
-          </div>
-
-          <div className="rounded-full bg-emerald-400/10 px-3 py-1.5 text-xs font-bold text-emerald-300">
-            #001
-          </div>
-        </div>
-
-        <div className="grid grid-cols-4 gap-1 rounded-2xl bg-black/40 p-2">
-          {cells.map((cell, index) => (
-            <div
-              key={index}
-              className={[
-                "flex aspect-square items-center justify-center rounded-lg",
-                cell.className,
-              ].join(" ")}
-            >
-              {cell.value && (
-                <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-white text-lg font-black text-black shadow-lg">
-                  {cell.value}
-                </span>
-              )}
-            </div>
           ))}
         </div>
+      </section>
 
-        <div className="mt-5 flex items-center justify-between text-xs text-neutral-500">
-          <span>Logic • Spatial</span>
-          <span>~3 min</span>
-        </div>
+      <footer className="flex flex-col gap-3 border-t border-border-subtle py-8 text-xs text-text-muted sm:flex-row sm:items-center sm:justify-between">
+        <p>© 2026 KleinLogic. All rights reserved.</p><p>A TechKlein experience.</p>
+      </footer>
+    </KleinLogicShell>
+  );
+}
+
+function LogicField() {
+  const nodes = [
+    "left-[10%] top-[34%]", "left-[50%] top-[34%]", "right-[10%] top-[34%]",
+    "left-[28%] bottom-[28%]", "left-[50%] bottom-[28%]", "right-[10%] bottom-[28%]",
+  ];
+  return (
+    <LogicPanel className="relative mx-auto w-full max-w-lg overflow-hidden p-6 sm:p-8">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(120,240,165,0.08),transparent_58%)]" />
+      <div className="relative flex items-center justify-between border-b border-border-subtle pb-5">
+        <div><p className="logic-kicker">Logic field</p><p className="mt-2 text-sm text-text-secondary">Signal → relation → resolution</p></div>
+        <LogicStatus status="active" label="Stable" />
       </div>
-    </div>
+      <div className="relative mx-auto my-10 aspect-square max-w-[21rem]">
+        <span className="absolute left-[10%] right-[10%] top-[34%] h-px bg-gradient-to-r from-transparent via-logic-primary/60 to-transparent" />
+        <span className="absolute bottom-[28%] left-[28%] right-[10%] h-px bg-logic-secondary/30" />
+        <span className="absolute bottom-[28%] left-1/2 top-[34%] w-px bg-gradient-to-b from-logic-primary/70 to-logic-secondary/25" />
+        {nodes.map((position, index) => <span key={position} className={`absolute ${position} h-3 w-3 -translate-x-1/2 -translate-y-1/2 rotate-45 border ${index === 1 || index === 4 ? "border-logic-primary bg-logic-primary shadow-[0_0_20px_rgba(120,240,165,0.45)]" : "border-border-strong bg-surface-panel"}`} />)}
+      </div>
+      <div className="relative grid grid-cols-3 gap-px bg-border-subtle text-center font-mono text-[0.625rem] uppercase tracking-[0.16em] text-text-muted">
+        <span className="bg-surface-elevated px-2 py-4">Observe</span><span className="bg-surface-elevated px-2 py-4">Resolve</span><span className="bg-surface-elevated px-2 py-4">Advance</span>
+      </div>
+    </LogicPanel>
   );
 }
