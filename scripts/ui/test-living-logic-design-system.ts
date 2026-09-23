@@ -49,7 +49,7 @@ async function main(): Promise<void> {
   check("privateFieldsAbsent", !lobby.includes("privateSeed") && !lobby.includes("access_token"));
   check("responsiveLobby", lobby.includes("sm:grid-cols-2") && lobby.includes("max-h-[25rem]"));
   check("demoPreserved", demo.includes("ArenaExperience"));
-  check("regionsLogicPreserved", regions.includes("GameBoard") && regions.includes("puzzle001"));
+  check("regionsLogicPreserved", regions.includes("RegionsExperience"));
   check("sumrollLogicPreserved", sumroll.includes("SumRollExperience"));
 
   console.log(JSON.stringify({ checksPassed: Object.keys(checks).length, checks }, null, 2));

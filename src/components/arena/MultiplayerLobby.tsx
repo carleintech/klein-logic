@@ -19,7 +19,7 @@ import {
   type LobbyRealtimeConnectionStatus,
 } from "../../arena/lobby-realtime";
 import type { PublicLobbyView } from "../../server/arena/lobby";
-import { ensureAnonymousSession } from "../../lib/supabase/anonymous-session";
+import { ensureKleinLogicSession } from "../../lib/supabase/anonymous-session";
 import { createSupabaseBrowserClient } from "../../lib/supabase/client";
 import { subscribeToLobbyRealtime } from "../../lib/supabase/lobby-realtime";
 import {
@@ -148,7 +148,7 @@ export default function MultiplayerLobby({
     async function initialize() {
       try {
         const supabase = createSupabaseBrowserClient();
-        await ensureAnonymousSession(supabase.auth);
+        await ensureKleinLogicSession(supabase.auth);
         if (!active) {
           return;
         }

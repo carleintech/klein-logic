@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 
 import { createArenaLobbyAction } from "../../app/arena/actions";
 import { lobbyErrorMessage } from "../../arena/lobby-ui";
-import { ensureAnonymousSession } from "../../lib/supabase/anonymous-session";
+import { ensureKleinLogicSession } from "../../lib/supabase/anonymous-session";
 import { createSupabaseBrowserClient } from "../../lib/supabase/client";
 import { LogicButton } from "../logic/LogicPrimitives";
 
@@ -26,7 +26,7 @@ export default function CreateArenaButton() {
 
     try {
       const supabase = createSupabaseBrowserClient();
-      await ensureAnonymousSession(supabase.auth);
+      await ensureKleinLogicSession(supabase.auth);
       const result = await createArenaLobbyAction();
 
       if (!result.ok) {

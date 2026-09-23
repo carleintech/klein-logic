@@ -11,11 +11,19 @@
     "db:test": "node --env-file=.env.local --conditions=react-server --import tsx scripts/db/test-arena-persistence.ts",
     "db:test:identity": "node --env-file=.env.local --conditions=react-server --import tsx scripts/db/test-arena-identity.ts",
     "db:test:lobby": "node --env-file=.env.local --conditions=react-server --import tsx scripts/db/test-arena-lobby.ts",
+    "db:test:player": "node --env-file=.env.local --conditions=react-server --import tsx scripts/db/test-player-identity.ts",
+    "db:test:regions-ranked": "node --env-file=.env.local --conditions=react-server --import tsx scripts/db/test-regions-competitive.ts",
     "auth:test": "node --env-file=.env.local --conditions=react-server --import tsx scripts/auth/test-supabase-identity.ts",
     "auth:test:realtime": "node --env-file=.env.local --import tsx scripts/auth/test-supabase-realtime.ts",
     "ui:test:lobby": "node --conditions=react-server --import tsx scripts/ui/test-arena-lobby-experience.ts",
     "ui:test:realtime": "node --conditions=react-server --import tsx scripts/ui/test-arena-lobby-realtime.ts",
-    "ui:test:design": "node --conditions=react-server --import tsx scripts/ui/test-living-logic-design-system.ts"
+    "ui:test:design": "node --conditions=react-server --import tsx scripts/ui/test-living-logic-design-system.ts",
+    "ui:test:feedback": "node --conditions=react-server --import tsx scripts/ui/test-feedback-system.ts",
+    "ui:test:intro": "node --conditions=react-server --import tsx scripts/ui/test-landing-intro.ts",
+    "ui:test:regions": "node --conditions=react-server --import tsx scripts/ui/test-regions-v2.ts",
+    "ui:test:regions:modes": "node --conditions=react-server --import tsx scripts/ui/test-regions-modes.ts",
+    "ui:test:player": "node --conditions=react-server --import tsx scripts/ui/test-player-identity.ts",
+    "ui:test:regions:ranked": "node --conditions=react-server --import tsx scripts/ui/test-regions-ranked.ts"
   },
   "dependencies": {
     "@supabase/ssr": "0.12.7",

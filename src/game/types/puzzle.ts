@@ -5,6 +5,8 @@ export type CellPosition = {
 
 export type RegionShape = "square" | "wide" | "tall" | "any";
 
+export type RegionDifficulty = "introductory" | "easy" | "medium" | "hard" | "expert";
+
 export type PuzzleClue = {
   id: string;
 
@@ -25,4 +27,10 @@ export type PuzzleDefinition = {
   cols: number;
 
   clues: PuzzleClue[];
+
+  difficulty?: RegionDifficulty;
+
+  order?: number;
+
+  parTimeSeconds?: number;
 };

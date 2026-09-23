@@ -1,3 +1,9 @@
+"use client";
+
+import { useEffect } from "react";
+
+import { LogicPulse } from "@/components/feedback/FeedbackPrimitives";
+import { useFeedback } from "@/components/feedback/FeedbackProvider";
 import type { TournamentState } from "@/arena/types";
 
 export default function ArenaResults({
@@ -9,9 +15,16 @@ export default function ArenaResults({
   onReplay: () => void;
   onDifferentSeed: () => void;
 }) {
+  const feedbackApi = useFeedback();
   const champion = tournament.players.find(
     (player) => player.status === "champion",
   );
+  useEffect(() => {
+    if (!champion) {
+      return;
+    }
+    feedbackApi.qualify();
+  }, [champion, feedbackApi]);
 
   if (!champion) {
     return null;
@@ -45,7 +58,7 @@ export default function ArenaResults({
       <p className="font-mono text-xs uppercase tracking-[0.34em] text-cyan-300">
         PIN³ Championship Final
       </p>
-      <div className="mt-9 text-7xl">🏆</div>
+      <LogicPulse className="mt-9 text-7xl">🏆</LogicPulse>
       <p className="mt-7 font-mono text-xs font-black uppercase tracking-[0.3em] text-amber-300">
         Champion
       </p>

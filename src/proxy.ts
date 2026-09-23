@@ -8,7 +8,9 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
+    "/play/:path*",
     "/arena/:path*",
+    "/api/auth/:path*",
     "/api/arena/:path*",
     "/api/dev/arena-identity/:path*",
   ],

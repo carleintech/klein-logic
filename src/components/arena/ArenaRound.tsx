@@ -1,4 +1,9 @@
+"use client";
+
+import { useEffect } from "react";
 import type { TournamentState } from "@/arena/types";
+import { useFeedback } from "@/components/feedback/FeedbackProvider";
+import { LogicCountdown, LogicPulse } from "@/components/feedback/FeedbackPrimitives";
 
 export default function ArenaRound({
   tournament,
@@ -9,10 +14,22 @@ export default function ArenaRound({
   countdown: number;
   onContinue: () => void;
 }) {
+  const feedbackApi = useFeedback();
   const round = tournament.preset.rounds[tournament.roundIndex];
   const activePlayers = tournament.players.filter(
     (player) => player.status === "active",
   );
+
+  useEffect(() => {
+    if (tournament.status !== "countdown") {
+      return;
+    }
+    if (countdown > 0) {
+      feedbackApi.countdown(countdown);
+    } else {
+      feedbackApi.roundChange();
+    }
+  }, [countdown, feedbackApi, tournament.status]);
 
   if (tournament.status === "countdown") {
     const isFinal = round.advancingPlayers === 1;
@@ -34,7 +51,7 @@ export default function ArenaRound({
             </div>
           )}
           <p className={`font-mono font-black text-white drop-shadow-[0_0_30px_rgba(103,232,249,0.25)] ${isFinal ? "mt-7 text-7xl" : "mt-10 text-9xl"}`}>
-            {countdown === 0 ? "BEGIN" : countdown}
+            <LogicPulse><LogicCountdown value={countdown === 0 ? "BEGIN" : countdown} /></LogicPulse>
           </p>
           <p className="mt-8 font-mono text-lg font-black uppercase tracking-[0.28em] text-cyan-300">
             {round.challengeType}

@@ -1,6 +1,8 @@
 import Link from "next/link";
 
+import LandingIntro from "@/components/landing/LandingIntro";
 import KleinLogicShell from "@/components/logic/KleinLogicShell";
+import { LogicPulse } from "@/components/feedback/FeedbackPrimitives";
 import { LogicPanel, LogicStatus, logicButtonClass } from "@/components/logic/LogicPrimitives";
 
 const experiences = [
@@ -12,6 +14,7 @@ const experiences = [
 export default function Home() {
   return (
     <KleinLogicShell context="Challenge Your Mind" status="Systems online">
+      <LandingIntro />
       <section className="grid min-h-[calc(100vh-5rem)] items-center gap-14 py-[var(--section-space)] lg:grid-cols-[1.05fr_0.95fr]">
         <div>
           <p className="logic-kicker">KleinLogic · Living Logic</p>
@@ -20,7 +23,7 @@ export default function Home() {
           </h1>
           <p className="mt-7 max-w-xl text-base leading-7 text-text-secondary sm:text-lg sm:leading-8">Original logic experiences built for precision, composure, and the moment uncertainty resolves into structure.</p>
           <div className="mt-9 flex flex-wrap gap-3">
-            <Link href="/games" className={logicButtonClass({ size: "large" })}>Explore games</Link>
+            <Link id="landing-primary-action" href="/games" className={logicButtonClass({ size: "large" })}>Explore games</Link>
             <Link href="/arena" className={logicButtonClass({ variant: "secondary", size: "large" })}>Enter PIN³</Link>
           </div>
         </div>
@@ -72,7 +75,7 @@ function LogicField() {
         <span className="absolute left-[10%] right-[10%] top-[34%] h-px bg-gradient-to-r from-transparent via-logic-primary/60 to-transparent" />
         <span className="absolute bottom-[28%] left-[28%] right-[10%] h-px bg-logic-secondary/30" />
         <span className="absolute bottom-[28%] left-1/2 top-[34%] w-px bg-gradient-to-b from-logic-primary/70 to-logic-secondary/25" />
-        {nodes.map((position, index) => <span key={position} className={`absolute ${position} h-3 w-3 -translate-x-1/2 -translate-y-1/2 rotate-45 border ${index === 1 || index === 4 ? "border-logic-primary bg-logic-primary shadow-[0_0_20px_rgba(120,240,165,0.45)]" : "border-border-strong bg-surface-panel"}`} />)}
+        {nodes.map((position, index) => <LogicPulse key={position} className={`absolute ${position} h-3 w-3 -translate-x-1/2 -translate-y-1/2 rotate-45 border ${index === 1 || index === 4 ? "border-logic-primary bg-logic-primary shadow-[0_0_20px_rgba(120,240,165,0.45)]" : "border-border-strong bg-surface-panel"}`} />)}
       </div>
       <div className="relative grid grid-cols-3 gap-px bg-border-subtle text-center font-mono text-[0.625rem] uppercase tracking-[0.16em] text-text-muted">
         <span className="bg-surface-elevated px-2 py-4">Observe</span><span className="bg-surface-elevated px-2 py-4">Resolve</span><span className="bg-surface-elevated px-2 py-4">Advance</span>

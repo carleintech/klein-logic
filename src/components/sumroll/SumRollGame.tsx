@@ -14,6 +14,8 @@ import {
   type PlayableChallengeType,
   type SumRollChallenge,
 } from "@/game/sumroll/engine";
+import { useFeedback } from "@/components/feedback/FeedbackProvider";
+import { LogicFeedbackState, LogicPulse } from "@/components/feedback/FeedbackPrimitives";
 
 const MAX_LIVES = 3;
 const TOTAL_ROUNDS = 10;
@@ -71,6 +73,7 @@ const MODE_COPY: Record<
 };
 
 export default function SumRollGame() {
+  const feedbackApi = useFeedback();
   const [mode, setMode] = useState<PlayableChallengeType>("match");
   const [runSeed, setRunSeed] = useState(1);
   const [roundNumber, setRoundNumber] = useState(1);
@@ -143,16 +146,18 @@ export default function SumRollGame() {
 
       if (nextLives <= 0) {
         setGameOver(true);
+        feedbackApi.eliminate();
         setFeedback({
           tone: "danger",
           text: `${message} No lives remaining.`,
         });
       } else {
+        feedbackApi.failure();
         setFeedback({ tone: "warning", text: `${message} One life lost.` });
         scheduleAdvance(1_050);
       }
     },
-    [lives, scheduleAdvance],
+    [feedbackApi, lives, scheduleAdvance],
   );
 
   useEffect(() => {
@@ -229,6 +234,7 @@ export default function SumRollGame() {
           ? `Lightning answer! +${earned}`
           : `Correct! +${earned}`,
     });
+    feedbackApi.success();
     scheduleAdvance(850);
   }
 
@@ -238,6 +244,7 @@ export default function SumRollGame() {
     }
 
     setSelectedSet(setId);
+    feedbackApi.select();
     const result = validateChallenge(challenge, { type: "match", setId });
 
     if (!result.correct) {
@@ -261,6 +268,7 @@ export default function SumRollGame() {
 
     if (selectedDice.includes(dieId)) {
       setSelectedDice((current) => current.filter((id) => id !== dieId));
+      feedbackApi.select();
 
       if (challenge.type === "exact") {
         setDeselections((current) => current + 1);
@@ -277,6 +285,7 @@ export default function SumRollGame() {
     }
 
     setSelectedDice((current) => [...current, dieId]);
+    feedbackApi.select();
   }
 
   function handleSelectionSubmit() {
@@ -342,6 +351,7 @@ export default function SumRollGame() {
     }
 
     setSelectedMemoryAnswer(total);
+    feedbackApi.select();
     const result = validateChallenge(challenge, { type: "memory", total });
 
     if (!result.correct) {
@@ -884,12 +894,13 @@ function FeedbackCard({ feedback }: { feedback: NonNullable<Feedback> }) {
         : "border-amber-500/30 bg-amber-950/40 text-amber-200";
 
   return (
-    <div
+    <LogicFeedbackState
+      state={feedback.tone === "success" ? "success" : feedback.tone === "danger" ? "failure" : "warning"}
       role="status"
       className={`mt-5 rounded-2xl border p-4 text-center font-bold ${style}`}
     >
-      {feedback.text}
-    </div>
+      <LogicPulse>{feedback.text}</LogicPulse>
+    </LogicFeedbackState>
   );
 }
 

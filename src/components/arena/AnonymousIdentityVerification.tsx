@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { ensureAnonymousSession } from "../../lib/supabase/anonymous-session";
+import { ensureKleinLogicSession } from "../../lib/supabase/anonymous-session";
 import { createSupabaseBrowserClient } from "../../lib/supabase/client";
 
 type VerificationState =
@@ -24,7 +24,7 @@ export function AnonymousIdentityVerification() {
     async function verifyIdentity() {
       try {
         const supabase = createSupabaseBrowserClient();
-        const browserSession = await ensureAnonymousSession(supabase.auth);
+        const browserSession = await ensureKleinLogicSession(supabase.auth);
         const response = await fetch("/api/dev/arena-identity", {
           cache: "no-store",
           credentials: "same-origin",

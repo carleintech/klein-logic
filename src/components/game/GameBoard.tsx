@@ -23,10 +23,26 @@ import {
 import { getValidationMessage } from "@/game/engine/messages";
 import { isPuzzleComplete } from "@/game/engine/completion";
 import { solvePuzzle } from "@/game/engine/solver";
+import { useFeedback } from "@/components/feedback/FeedbackProvider";
+import { LogicFeedbackState } from "@/components/feedback/FeedbackPrimitives";
 
 type GameBoardProps = {
   puzzle: PuzzleDefinition;
+  onNextPuzzle?: () => void;
+  catalogComplete?: boolean;
+  onComplete?: (result: GameBoardCompletion) => void;
+  suppressBoardTimer?: boolean;
+  timerDisplay?: string;
+  timerCaption?: string;
 };
+
+export type GameBoardCompletion = Readonly<{
+  puzzleId: string;
+  elapsedSeconds: number;
+  score: number;
+  hintsUsed: number;
+  proof: ReadonlyArray<PlacedRegion>;
+}>;
 
 type DrawState = {
   pointerId: number;
@@ -117,7 +133,8 @@ function shouldLoseLife(error: ValidationError): boolean {
   );
 }
 
-export default function GameBoard({ puzzle }: GameBoardProps) {
+export default function GameBoard({ puzzle, onNextPuzzle, catalogComplete = false, onComplete, suppressBoardTimer = false, timerDisplay, timerCaption = "Time" }: GameBoardProps) {
+  const feedbackApi = useFeedback();
   const boardRef = useRef<HTMLDivElement | null>(null);
 
   const [regions, setRegions] = useState<PlacedRegion[]>([]);
@@ -155,7 +172,7 @@ export default function GameBoard({ puzzle }: GameBoardProps) {
    */
 
   useEffect(() => {
-    if (completed || gameOver) {
+    if (suppressBoardTimer || completed || gameOver) {
       return;
     }
 
@@ -166,7 +183,7 @@ export default function GameBoard({ puzzle }: GameBoardProps) {
     return () => {
       window.clearInterval(timer);
     };
-  }, [completed, gameOver]);
+  }, [completed, gameOver, suppressBoardTimer]);
 
   /*
    * -------------------------------------------------------
@@ -326,6 +343,7 @@ export default function GameBoard({ puzzle }: GameBoardProps) {
     }
 
     setSelectedClue(clue);
+    feedbackApi.select();
 
     setDraw(null);
 
@@ -464,6 +482,7 @@ export default function GameBoard({ puzzle }: GameBoardProps) {
       const loseLife = shouldLoseLife(validation.reason);
 
       if (!loseLife) {
+        feedbackApi.warning();
         setFeedback({
           type: "warning",
           text: getValidationMessage(validation.reason, {
@@ -487,6 +506,7 @@ export default function GameBoard({ puzzle }: GameBoardProps) {
 
       if (nextLives <= 0) {
         setGameOver(true);
+        feedbackApi.eliminate();
 
         setFeedback(null);
 
@@ -499,6 +519,7 @@ export default function GameBoard({ puzzle }: GameBoardProps) {
           expectedSize: selectedClue.size,
         })} You lost a life.`,
       });
+      feedbackApi.failure();
 
       return;
     }
@@ -549,11 +570,13 @@ export default function GameBoard({ puzzle }: GameBoardProps) {
             ? `Perfect region! +${earned} points`
             : `Region complete! +${earned} points`,
       });
+      feedbackApi.success();
     } else {
       setFeedback({
         type: "success",
         text: "Region updated.",
       });
+      feedbackApi.select();
     }
 
     setRegions(nextRegions);
@@ -582,6 +605,17 @@ export default function GameBoard({ puzzle }: GameBoardProps) {
       }
 
       setCompleted(true);
+      onComplete?.({
+        puzzleId: puzzle.id,
+        elapsedSeconds,
+        score,
+        hintsUsed,
+        proof: nextRegions.map((region) => ({
+          clueId: region.clueId,
+          rectangle: { ...region.rectangle },
+        })),
+      });
+      feedbackApi.qualify();
     }
   }
 
@@ -725,6 +759,13 @@ export default function GameBoard({ puzzle }: GameBoardProps) {
 
     if (isPuzzleComplete(puzzle, nextRegions)) {
       setCompleted(true);
+      onComplete?.({
+        puzzleId: puzzle.id,
+        elapsedSeconds,
+        score,
+        hintsUsed: hintsUsed + 1,
+        proof: nextRegions.map((region) => ({ clueId: region.clueId, rectangle: { ...region.rectangle } })),
+      });
     }
   }
 
@@ -800,11 +841,11 @@ export default function GameBoard({ puzzle }: GameBoardProps) {
 
           <div className="text-center">
             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-neutral-500">
-              Time
+              {timerCaption}
             </p>
 
             <p className="mt-1 text-xl font-black text-white">
-              {formatTime(elapsedSeconds)}
+              {timerDisplay ?? formatTime(elapsedSeconds)}
             </p>
           </div>
 
@@ -1173,6 +1214,20 @@ export default function GameBoard({ puzzle }: GameBoardProps) {
             >
               Play Again
             </button>
+            {onNextPuzzle && (
+              <button
+                type="button"
+                onClick={onNextPuzzle}
+                className="mt-3 w-full rounded-xl border border-emerald-400/50 px-5 py-3 font-black text-emerald-300 transition hover:bg-emerald-400/10"
+              >
+                Next Puzzle →
+              </button>
+            )}
+            {catalogComplete && (
+              <p className="mt-4 font-mono text-[0.625rem] font-bold uppercase tracking-[0.16em] text-emerald-300">
+                Regions catalog complete · more boards coming soon
+              </p>
+            )}
           </div>
         </div>
       )}
@@ -1200,7 +1255,8 @@ function FeedbackCard({ feedback }: { feedback: NonNullable<Feedback> }) {
           : "i";
 
   return (
-    <div
+    <LogicFeedbackState
+      state={feedback.type === "success" ? "success" : feedback.type === "danger" ? "failure" : feedback.type === "warning" ? "warning" : "neutral"}
       role="status"
       className={`mt-4 flex items-center gap-3 rounded-xl border p-4 ${style}`}
     >
@@ -1209,7 +1265,7 @@ function FeedbackCard({ feedback }: { feedback: NonNullable<Feedback> }) {
       </div>
 
       <p className="text-sm font-semibold">{feedback.text}</p>
-    </div>
+    </LogicFeedbackState>
   );
 }
 

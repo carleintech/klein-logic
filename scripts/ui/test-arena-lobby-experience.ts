@@ -62,6 +62,8 @@ async function main(): Promise<void> {
   assert(joinForm.includes("disabled={pending}"));
   assert(createButton.includes("inFlight.current"));
   assert(createButton.includes("disabled={pending}"));
+  assert(createButton.includes("ensureKleinLogicSession"));
+  assert(joinForm.includes("ensureKleinLogicSession"));
 
   assert(actions.includes("createArenaLobbyAction()"));
   assert(actions.includes("joinCode: input.joinCode"));
@@ -116,6 +118,7 @@ async function main(): Promise<void> {
   assert(readRoute.includes("runLobbyOperation"));
   assert(proxy.includes('"/arena/:path*"'));
   assert(proxy.includes('"/api/arena/:path*"'));
+  assert(proxy.includes('"/api/auth/:path*"'));
 
   console.log(
     JSON.stringify(

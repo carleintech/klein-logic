@@ -5,6 +5,10 @@ export const puzzle001: PuzzleDefinition = {
 
   title: "First Steps",
 
+  difficulty: "introductory",
+
+  order: 1,
+
   rows: 5,
 
   cols: 5,

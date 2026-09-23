@@ -10,7 +10,7 @@ import {
   normalizeJoinCodeForUi,
   validateDisplayNameForUi,
 } from "../../arena/lobby-ui";
-import { ensureAnonymousSession } from "../../lib/supabase/anonymous-session";
+import { ensureKleinLogicSession } from "../../lib/supabase/anonymous-session";
 import { createSupabaseBrowserClient } from "../../lib/supabase/client";
 import { LogicButton, LogicPanel, logicButtonClass } from "../logic/LogicPrimitives";
 
@@ -52,7 +52,7 @@ export default function JoinArenaForm({
 
     try {
       const supabase = createSupabaseBrowserClient();
-      await ensureAnonymousSession(supabase.auth);
+      await ensureKleinLogicSession(supabase.auth);
       const result = await joinArenaLobbyAction({ joinCode, displayName });
 
       if (!result.ok) {

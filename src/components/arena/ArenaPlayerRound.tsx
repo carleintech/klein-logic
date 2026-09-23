@@ -2,6 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { LogicPulse } from "@/components/feedback/FeedbackPrimitives";
+import { useFeedback } from "@/components/feedback/FeedbackProvider";
+
 import type {
   PublicArenaChallenge,
   PublicExactArenaChallenge,
@@ -37,6 +40,7 @@ export function ArenaHumanChallenge({
   responseWindowMs: number;
   onSubmit: (submission: ArenaPublicSubmission) => void;
 }) {
+  const feedbackApi = useFeedback();
   const [selectedDice, setSelectedDice] = useState<string[]>([]);
   const [deselections, setDeselections] = useState(0);
   const [memoryPhase, setMemoryPhase] = useState<MemoryPhase>("ready");
@@ -157,6 +161,7 @@ export function ArenaHumanChallenge({
     }
 
     if (selectedDice.includes(dieId)) {
+      feedbackApi.select();
       setSelectedDice((current) => current.filter((id) => id !== dieId));
       if (activeChallenge.type === "exact") {
         setDeselections((current) => current + 1);
@@ -172,6 +177,7 @@ export function ArenaHumanChallenge({
     }
 
     setSelectedDice((current) => [...current, dieId]);
+    feedbackApi.select();
   }
 
   const timerLabel =
@@ -183,9 +189,9 @@ export function ArenaHumanChallenge({
     <section className="mx-auto w-full max-w-4xl border border-white/10 bg-[#080d13]">
       <div className="flex items-center justify-between border-b border-white/10 px-5 py-4 font-mono text-[10px] uppercase tracking-[0.2em]">
         <span className="text-cyan-300">{roundLabel} · You are playing</span>
-        <span className={timeRemainingMs <= 1_000 ? "text-red-300" : "text-white"}>
+        <LogicPulse className={timeRemainingMs <= 1_000 ? "text-red-300" : "text-white"}>
           {timerLabel}
-        </span>
+        </LogicPulse>
       </div>
 
       <div className="p-5 sm:p-8">
@@ -312,6 +318,7 @@ export function ArenaHumanRoundResults({
   onWatch: () => void;
   onTryAgain: () => void;
 }) {
+  const feedbackApi = useFeedback();
   const human = tournament.players.find(
     (player) => player.participantType === "human",
   );
@@ -320,11 +327,22 @@ export function ArenaHumanRoundResults({
     (response) => response.playerId === human?.id,
   );
 
+  const survived = human?.status === "active";
+  useEffect(() => {
+    if (!human || !result || !ranking) {
+      return;
+    }
+    if (survived) {
+      feedbackApi.qualify();
+    } else {
+      feedbackApi.eliminate();
+    }
+  }, [feedbackApi, human, ranking, result, survived]);
+
   if (!human || !result || !ranking) {
     return null;
   }
 
-  const survived = human.status === "active";
   const cutoff = result.rankings[result.advancingPlayers - 1];
 
   return (

@@ -6,7 +6,7 @@ import path from "node:path";
 import type { JwtPayload } from "@supabase/supabase-js";
 
 import {
-  ensureAnonymousSession,
+  ensureKleinLogicSession,
   type AnonymousAuthClient,
 } from "../../src/lib/supabase/anonymous-session";
 import {
@@ -103,23 +103,38 @@ async function testTrustedResolution(): Promise<void> {
 async function testAnonymousBootstrap(): Promise<void> {
   const subjectId = randomUUID();
   let signInCount = 0;
+  let currentSubjectId: string | null = null;
   const emptySessionClient = {
     async getSession() {
       return { data: { session: null }, error: null };
     },
+    async getUser() {
+      return {
+        data: { user: currentSubjectId ? { id: currentSubjectId } : null },
+        error: currentSubjectId ? null : new Error("missing session"),
+      };
+    },
     async signInAnonymously() {
       signInCount += 1;
+      currentSubjectId = subjectId;
       await Promise.resolve();
       return {
         data: { user: { id: subjectId }, session: null },
         error: null,
       };
     },
+    async signOut() {
+      currentSubjectId = null;
+      return { error: null };
+    },
+    async refreshSession() {
+      return { data: { user: { id: subjectId } }, error: null };
+    },
   } as unknown as AnonymousAuthClient;
 
   const [first, strictModeReplay] = await Promise.all([
-    ensureAnonymousSession(emptySessionClient),
-    ensureAnonymousSession(emptySessionClient),
+    ensureKleinLogicSession(emptySessionClient, async () => true),
+    ensureKleinLogicSession(emptySessionClient, async () => true),
   ]);
   assert.equal(signInCount, 1);
   assert.equal(first.subjectId, subjectId);
@@ -132,13 +147,111 @@ async function testAnonymousBootstrap(): Promise<void> {
         error: null,
       };
     },
+    async getUser() {
+      return { data: { user: { id: subjectId } }, error: null };
+    },
     async signInAnonymously() {
       throw new Error("Existing sessions must not create another anonymous user.");
     },
+    async signOut() {
+      throw new Error("A valid session must not be cleared.");
+    },
+    async refreshSession() {
+      throw new Error("A server-verified session must not be refreshed.");
+    },
   } as unknown as AnonymousAuthClient;
-  const reused = await ensureAnonymousSession(existingSessionClient);
+  const reused = await ensureKleinLogicSession(
+    existingSessionClient,
+    async () => true,
+  );
   assert.equal(reused.subjectId, subjectId);
   assert.equal(reused.created, false);
+}
+
+async function testStaleSessionRecovery(): Promise<void> {
+  const staleSubjectId = randomUUID();
+  const replacementSubjectId = randomUUID();
+  let currentSubjectId: string | null = staleSubjectId;
+  let signOutScope: string | undefined;
+
+  const client = {
+    async getSession() {
+      return {
+        data: { session: { user: { id: staleSubjectId } } },
+        error: null,
+      };
+    },
+    async getUser() {
+      if (currentSubjectId === staleSubjectId) {
+        return { data: { user: null }, error: new Error("invalid token") };
+      }
+
+      return {
+        data: { user: currentSubjectId ? { id: currentSubjectId } : null },
+        error: currentSubjectId ? null : new Error("missing session"),
+      };
+    },
+    async signOut(options: { scope?: string }) {
+      signOutScope = options.scope;
+      currentSubjectId = null;
+      return { error: null };
+    },
+    async signInAnonymously() {
+      currentSubjectId = replacementSubjectId;
+      return {
+        data: { user: { id: replacementSubjectId }, session: null },
+        error: null,
+      };
+    },
+    async refreshSession() {
+      return {
+        data: { user: null },
+        error: new Error("invalid refresh token"),
+      };
+    },
+  } as unknown as AnonymousAuthClient;
+
+  const recovered = await ensureKleinLogicSession(client, async () => true);
+
+  assert.equal(signOutScope, "local");
+  assert.equal(recovered.subjectId, replacementSubjectId);
+  assert.equal(recovered.created, true);
+}
+
+async function testTrustedServerVerificationRetry(): Promise<void> {
+  const subjectId = randomUUID();
+  let verificationCount = 0;
+  let refreshCount = 0;
+  const client = {
+    async getSession() {
+      return {
+        data: { session: { user: { id: subjectId } } },
+        error: null,
+      };
+    },
+    async getUser() {
+      return { data: { user: { id: subjectId } }, error: null };
+    },
+    async signInAnonymously() {
+      throw new Error("Existing sessions must not create another anonymous user.");
+    },
+    async signOut() {
+      throw new Error("A browser-verified session must not be cleared.");
+    },
+    async refreshSession() {
+      refreshCount += 1;
+      return { data: { user: { id: subjectId } }, error: null };
+    },
+  } as unknown as AnonymousAuthClient;
+
+  const session = await ensureKleinLogicSession(client, async () => {
+    verificationCount += 1;
+    return verificationCount === 2;
+  });
+
+  assert.equal(session.subjectId, subjectId);
+  assert.equal(refreshCount, 1);
+  assert.equal(verificationCount, 2);
 }
 
 async function testSourceBoundaries(): Promise<void> {
@@ -155,6 +268,19 @@ async function testSourceBoundaries(): Promise<void> {
     path.join(root, ".env.example"),
     "utf8",
   );
+  const sessionRoute = await readFile(
+    path.join(root, "src", "app", "api", "auth", "session", "route.ts"),
+    "utf8",
+  );
+  const proxy = await readFile(path.join(root, "src", "proxy.ts"), "utf8");
+  const playerGate = await readFile(
+    path.join(root, "src", "components", "player", "PlayerProfileGate.tsx"),
+    "utf8",
+  );
+  const createArena = await readFile(
+    path.join(root, "src", "components", "arena", "CreateArenaButton.tsx"),
+    "utf8",
+  );
 
   assert(browserClient.includes("NEXT_PUBLIC_SUPABASE_URL"));
   assert(browserClient.includes("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"));
@@ -162,12 +288,20 @@ async function testSourceBoundaries(): Promise<void> {
   assert(!arenaService.includes("@supabase"));
   assert(!/service.?role|secret.?key/i.test(environmentExample));
   assert(environmentExample.includes("your-publishable-key"));
+  assert(sessionRoute.includes("requireArenaIdentity()"));
+  assert(!sessionRoute.includes("subjectId"));
+  assert(proxy.includes('"/play/:path*"'));
+  assert(proxy.includes('"/api/auth/:path*"'));
+  assert(playerGate.includes("ensureKleinLogicSession"));
+  assert(createArena.includes("ensureKleinLogicSession"));
 }
 
 async function main(): Promise<void> {
   await testProviderMapping();
   await testTrustedResolution();
   await testAnonymousBootstrap();
+  await testStaleSessionRecovery();
+  await testTrustedServerVerificationRetry();
   await testSourceBoundaries();
 
   console.log(
@@ -181,6 +315,11 @@ async function main(): Promise<void> {
         forgedRoleExcluded: true,
         strictModeDuplicateSignInPrevented: true,
         existingSessionReused: true,
+        staleSessionRecoveredLocally: true,
+        browserSessionVerifiedBeforeUse: true,
+        trustedServerVerificationRequired: true,
+        serverVerificationRefreshRetryBounded: true,
+        regionsAndArenaShareBootstrap: true,
         arenaServiceProviderNeutral: true,
         browserSecretBoundaryVerified: true,
       },

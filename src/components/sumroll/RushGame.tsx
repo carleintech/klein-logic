@@ -20,6 +20,8 @@ import {
   type RushSession,
   type RushChallenge,
 } from "@/game/sumroll/modes/rush";
+import { useFeedback } from "@/components/feedback/FeedbackProvider";
+import { LogicFeedbackState, LogicPulse } from "@/components/feedback/FeedbackPrimitives";
 
 const DIE_SYMBOLS: Record<DieValue, string> = {
   1: "⚀",
@@ -36,6 +38,7 @@ type RushFeedback = {
 } | null;
 
 export default function RushGame() {
+  const feedbackApi = useFeedback();
   const [nextSeed, setNextSeed] = useState(1);
   const [session, setSession] = useState<RushSession | null>(null);
   const [selectedDice, setSelectedDice] = useState<string[]>([]);
@@ -69,6 +72,7 @@ export default function RushGame() {
 
     setNextSeed((current) => current + 1);
     setSession(nextSession);
+    feedbackApi.roundChange();
     setSelectedDice([]);
     setDeselections(0);
     setFeedback(null);
@@ -89,11 +93,13 @@ export default function RushGame() {
     challengeStartedAt.current = performance.now();
 
     if (resolution.validation.correct) {
+      feedbackApi.success();
       setFeedback({
         tone: "success",
         text: `+${resolution.points} · ×${resolution.multiplier} combo score`,
       });
     } else {
+      feedbackApi.failure();
       setFeedback({
         tone: "danger",
         text: `Wrong answer · −${resolution.penaltyMs / 1_000}s`,
@@ -114,6 +120,7 @@ export default function RushGame() {
 
     if (selectedDice.includes(dieId)) {
       setSelectedDice((current) => current.filter((id) => id !== dieId));
+      feedbackApi.select();
 
       if (challenge.type === "exact") {
         setDeselections((current) => current + 1);
@@ -130,6 +137,7 @@ export default function RushGame() {
     }
 
     setSelectedDice((current) => [...current, dieId]);
+    feedbackApi.select();
   }
 
   function lockSelection() {
@@ -156,6 +164,7 @@ export default function RushGame() {
       tone: "warning",
       text: `Skipped · −${RUSH_SKIP_PENALTY_MS / 1_000}s`,
     });
+    feedbackApi.warning();
     challengeStartedAt.current = performance.now();
   }
 
@@ -446,9 +455,13 @@ function RushFeedbackCard({ feedback }: { feedback: NonNullable<RushFeedback> })
         : "border-amber-500/30 bg-amber-950/40 text-amber-200";
 
   return (
-    <div className={`mb-5 rounded-xl border p-3 text-center text-sm font-black ${style}`}>
-      {feedback.text}
-    </div>
+    <LogicFeedbackState
+      state={feedback.tone === "success" ? "success" : feedback.tone === "danger" ? "failure" : "warning"}
+      role="status"
+      className={`mb-5 rounded-xl border p-3 text-center text-sm font-black ${style}`}
+    >
+      <LogicPulse>{feedback.text}</LogicPulse>
+    </LogicFeedbackState>
   );
 }
 
